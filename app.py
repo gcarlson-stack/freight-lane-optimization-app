@@ -1679,32 +1679,25 @@ if st.button("Build RFP letters (ZIP)"):
 
 st.markdown("---")
 st.subheader("✉️ Generate Negotiation Letters")
+# ---- determine which lanes are actually in-scope for negotiation letters ----
+neg_letter_df = letter_df[letter_df["action"] == "NEGOTIATE"].copy()
 
-# Combine only Letter lanes (non-Private Fleet) + all other lanes lanes (if included)
-combined_for_letters = pd.concat(
-    [
-        letter_df.assign(source="NON_GREIF"),  # only lane_treatment == 'Letter'
-        gpf_export.assign(source="GREIF"),
-    ],
-    ignore_index=True,
-    sort=False,
-)
-
-combined_for_letters = combined_for_letters[
-    combined_for_letters["action"] == "NEGOTIATE"
-]
-if combined_for_letters.empty:
+if neg_letter_df.empty:
     st.info(
         "No lanes are currently flagged for negotiation letters. "
-        "All NEGOTIATE lanes have either been routed to the RFP or excluded "
-        "under the current filters and overrides."
+        "Under the current rules and overrides, all lanes above benchmark "
+        "are either routed to the RFP or excluded."
     )
 else:
     st.success(
-        f"{combined_for_letters['carrier_name'].nunique()} carriers and "
-        f"{combined_for_letters['lane_key'].nunique()} unique lanes "
+        f"{neg_letter_df['carrier_name'].nunique()} carriers and "
+        f"{neg_letter_df['lane_key'].nunique()} unique lanes "
         "are in scope for negotiation letters."
     )
+# Combine only Letter lanes (non-Private Fleet) + all other lanes lanes (if included)
+# Combine only Letter lanes (non-Private Fleet) + optional GREIF lanes
+combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
+# GREIF lanes will be added later inside the button when (and if) user checks the box
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
@@ -1743,12 +1736,29 @@ letter_body_template = st.text_area(
 )
 
 if st.button("Build negotiation letters (ZIP)"):
+
+    # Start from non-GREIF negotiation lanes
+    combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
+
+    # Optionally add GREIF lanes that are NEGOTIATE
+    if include_greif_in_letters and not gpf_export.empty:
+        greif_neg = gpf_export[gpf_export["action"] == "NEGOTIATE"].copy()
+        greif_neg["source"] = "GREIF"
+        combined_for_letters = pd.concat(
+            [combined_for_letters, greif_neg],
+            ignore_index=True,
+            sort=False,
+        )
+
     if combined_for_letters.empty:
-        st.warning("No negotiation letters were generated because no lanes are currently marked to be negotiated outside of RFP.")
+        st.warning(
+            "No negotiation letters were generated because no lanes are "
+            "currently classified as Letter + NEGOTIATE."
+        )
     else:
         zip_bytes = build_letters_zip(
             df_all=combined_for_letters,
-            include_privfleet=include_privfleet_in_letters,
+            include_greif=include_greif_in_letters,
             sender_company=sender_company,
             sender_name=sender_name,
             sender_title=sender_title,
