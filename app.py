@@ -566,6 +566,9 @@ with st.sidebar:
     st.header("🧭 How to use this tool")
 
     st.markdown("""
+**Please note: when the app is running, the website will "gray out." Please do not refresh the page "
+"or make changes to any of the inputs while the page is loading.**
+
 **Step 1 – Upload data**
 1. Upload **Client** and **Benchmark** files.
 2. Map the correct columns (lane, cost, carrier, mode).
@@ -609,6 +612,8 @@ if "results_ready" not in st.session_state:
 colL, colR = st.columns(2)
 with colL:
     st.subheader("Client file")
+    st.markdown("Upload a data export from your TMS system that contains lanes (origin and destination), carriers, base rate charged, transportation mode (e.g., TL). \n"
+                "Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.")
     client_file = st.file_uploader("Upload Client (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
     client_sheets = infer_sheets(client_file)
     client_sheet = st.selectbox("Client sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
@@ -624,10 +629,13 @@ if client_file is not None:
         
 with colR:
     st.subheader("Benchmark file")
+    st.markdown("Upload a data export from your benchmark source (e.g., DAT) that contains lanes (origin and destination) and base rate charged. \n"
+                "Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.")
     bench_file = st.file_uploader("Upload Benchmark (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="bench")
     bench_sheets = infer_sheets(bench_file)
     bench_sheet = st.selectbox("Benchmark sheet (optional)", options=["<first sheet>"] + bench_sheets if bench_sheets else ["<first sheet>"])
 
+st.markdown("STOP - loading both files will likely take a few minutes. Please wait for the upload to complete before moving forward.")
 st.markdown("---")
 
 # ============ Columns & Options ============
@@ -837,7 +845,6 @@ if run:
         merged.loc[mask, "delta"] / merged.loc[mask, "benchmark_cost"] * 100.0
     )
 
-    
     # NEGOTIATE flag
     merged["action"] = merged["delta"].apply(
         lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None"
@@ -942,7 +949,6 @@ gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum()) if not gp
 gpf_total_delta = float(
     gpf_export.loc[gpf_export["action"] == "NEGOTIATE", "delta"].sum(skipna=True)
 ) if not gpf_export.empty else 0.0
-
 
 # ============ RFP vs Letter vs No-Action Classification ============
 
