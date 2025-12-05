@@ -4,4 +4,3 @@ openpyxl
 python-docx
 pyxlsb
 numpy
-math
