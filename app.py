@@ -9,11 +9,6 @@ from docx import Document
 from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from docx.shared import Inches
-from docx.oxml.ns import qn
-
-import math 
-
 def _safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in (" ", "_", "-") else "_" for c in name).strip().replace(" ", "_")
 
@@ -622,7 +617,7 @@ client_mode_columns = ["<None>"]
 if client_file is not None:
     try:
         sheet_c_preview = None if client_sheet == "<first sheet>" else client_sheet
-        df_client_preview = read_any(client_file, sheet_c_preview)
+        df_client_preview = read_any_cached(client_file, sheet_c_preview)
         client_mode_columns = ["<None>"] + list(df_client_preview.columns)
     except Exception as e:
         st.warning(f"Could not read client file to detect columns: {e}")
@@ -709,8 +704,8 @@ if run:
     sheet_b = None if bench_sheet == "<first sheet>" else bench_sheet
 
     try:
-        df_client = read_any(client_file, sheet_c)
-        df_bench = read_any(bench_file, sheet_b)
+        df_client = read_any_cached(client_file, sheet_c)
+        df_bench = read_any_cached(bench_file, sheet_b)
     except Exception as e:
         st.error(f"Error loading files: {e}")
         st.stop()
@@ -1285,7 +1280,7 @@ if st.button("⬇️ Build RFP Template (Excel)"):
 
     # Location list
     if rfp_loc_file is not None:
-        loc_df = read_any(rfp_loc_file)
+        loc_df = read_any_cached(rfp_loc_file)
     else:
         loc_df = pd.DataFrame()
 
