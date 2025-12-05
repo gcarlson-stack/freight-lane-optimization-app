@@ -371,9 +371,9 @@ def build_rfp_letter_docx(
     return bio.read()
 
 
-def build_letters_zip(df_all, include_greif: bool, sender_company: str, sender_name: str,
+def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, sender_name: str,
                       sender_title: str, reply_by: str, body_template: str) -> bytes:
-    if not include_greif:
+    if not include_privfleet:
         df_all = df_all[df_all["carrier_name"].astype(str).str.upper() != "GREIF PRIVATE FLEET"]
 
     df_neg = df_all[df_all["action"] == "NEGOTIATE"].copy()
@@ -412,14 +412,14 @@ def build_rfp_letters_zip(
     sender_title: str,
     reply_by: str,
     rfp_body_template: str,
-    include_greif: bool = False,
+    include_privfleet: bool = False,
 ) -> bytes:
     """
     Build a ZIP with one RFP letter per carrier present in rfp_df.
     """
     df_all = rfp_df.copy()
 
-    if not include_greif:
+    if not include_privfleet:
         df_all = df_all[df_all["carrier_name"].astype(str).str.upper() != "GREIF PRIVATE FLEET"]
 
     if df_all.empty:
@@ -566,8 +566,8 @@ with st.sidebar:
     st.header("🧭 How to use this tool")
 
     st.markdown("""
-**Please note: when the app is running, the website will "gray out." Please do not refresh the page "
-"or make changes to any of the inputs while the page is loading.**
+**Please note: when the app is running, the website will "gray out." Please do not refresh the page 
+or make changes to any of the inputs while the page is loading.**
 
 **Step 1 – Upload data**
 1. Upload **Client** and **Benchmark** files.
@@ -640,6 +640,7 @@ st.markdown("---")
 
 # ============ Columns & Options ============
 st.subheader("Columns & Options")
+st.markdown("Please enter the names of the columns where each data can be found in the client and benchmark files.")
 c1, c2, c3 = st.columns(3)
 
 with c1:
@@ -663,7 +664,7 @@ with c3:
     extra_carriers = st.text_area("Carriers to exclude (comma-separated, case-insensitive)", placeholder="CARRIER A, CARRIER B")
 
 st.subheader("Mode Filter (exclude LTL, etc.)")
-
+st.markdown("Select the column from the dropdown that contains the transportation mode in the client data file. Then fill in the mode that is to be excluded.") 
 m1, m2 = st.columns(2)
 with m1:
     mode_col = st.selectbox(
@@ -680,10 +681,10 @@ with m2:
     )
 
 st.subheader("RFP Overrides")
-
+st.markdown("Provide lane names that are to be excluded from the RFP. Ensure lanes are entered in the format provided in the example.")
 letter_override_raw = st.text_area(
     "Lane keys to treat as Vendor Letters instead of RFP (comma or newline separated)",
-    placeholder="Example: ATLANTAGA DALLASTX, CHICAGOIL HOUSTONTX",
+    placeholder="Example: ATLANTAGADALLASTX, CHICAGOILHOUSTONTX",
     help="Provide lane_key values exactly as they appear in the output (e.g., ORIGINSTATEDESTSTATE). "
          "Any lane listed here will be handled via vendor letters instead of RFP."
 )
@@ -885,7 +886,7 @@ if run:
         gpf_count = int(gpf_export.shape[0])
         gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum())
         gpf_total_delta = float(gpf_export.loc[gpf_export["action"] == "NEGOTIATE", "delta"].sum(skipna=True))
-        # Add origin/dest columns for GREIF lanes
+        # Add origin/dest columns for Private Fleet lanes
     if lane_detail_col in gpf_rows.columns:
         lane_src = gpf_rows[lane_detail_col]
     else:
@@ -907,10 +908,10 @@ if run:
             "Summary_Text": f"SUMMARY (OVERALL): {overall_count} lanes marked as NEGOTIATE with total delta ${overall_total:,.2f}."
         },
         {
-            "Segment": "GREIF PRIVATE FLEET",
+            "Segment": "PRIVATE FLEET",
             "Negotiate_Lanes": gpf_negotiate_count,
             "Total_Delta": gpf_total_delta,
-            "Summary_Text": f"SUMMARY (GREIF): {gpf_count} GREIF lanes total; NEGOTIATE lanes delta ${gpf_total_delta:,.2f}."
+            "Summary_Text": f"SUMMARY: {gpf_count} lanes total; NEGOTIATE lanes delta ${gpf_total_delta:,.2f}."
         }
     ])
 
@@ -943,7 +944,7 @@ summary_df = st.session_state["summary_df"]
 excluded_summary_df = st.session_state["excluded_summary_df"]
 excluded_detail_df = st.session_state["excluded_detail_df"]
 
-# Derive GREIF stats from stored gpf_export
+# Derive Private Fleet stats from stored gpf_export
 gpf_count = int(gpf_export.shape[0])
 gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum()) if not gpf_export.empty else 0
 gpf_total_delta = float(
@@ -1006,7 +1007,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🧾 Summary",
     "📦 RFP Candidates",
     "📊 Letter Candidates (excluding Private Fleet)",
-    "🚛 GREIF Private Fleet",
+    "🚛 Private Fleet",
     "🚫 Excluded (Summary)",
     "🚫 Excluded (Detail)"
 ])
@@ -1111,9 +1112,9 @@ with tab3:
 
 with tab4:
     if gpf_export.empty:
-        st.info("No GREIF PRIVATE FLEET lanes found after exclusions.")
+        st.info("No PRIVATE FLEET lanes found after exclusions.")
     else:
-        st.caption(f"{gpf_count} GREIF lanes | NEGOTIATE delta: ${gpf_total_delta:,.2f}")
+        st.caption(f"{gpf_count} Private Fleet lanes | NEGOTIATE delta: ${gpf_total_delta:,.2f}")
         st.dataframe(gpf_export, width='stretch')
 
 with tab5:
@@ -1147,7 +1148,7 @@ if st.button("Prepare Excel comparison workbook"):
 
 if "comparison_xlsx" in st.session_state:
     st.download_button(
-        label="⬇️ Download Excel (Comparison + GREIF + Summary + Exclusions)",
+        label="⬇️ Download Excel (Comparison + Private Fleet + Summary + Exclusions)",
         data=st.session_state["comparison_xlsx"],
         file_name="lane_comparison.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1640,8 +1641,8 @@ rfp_body_template = st.text_area(
     height=220,
 )
 
-include_greif_in_rfp_letters = st.checkbox(
-    "Include GREIF PRIVATE FLEET in RFP letters",
+include_privfleet_in_rfp_letters = st.checkbox(
+    "Include PRIVATE FLEET in RFP letters",
     value=False
 )
 
@@ -1656,7 +1657,7 @@ if st.button("Build RFP letters (ZIP)"):
             sender_title=rfp_sender_title,
             reply_by=rfp_reply_by if rfp_reply_by else "the requested RFP due date",
             rfp_body_template=rfp_body_template,
-            include_greif=include_greif_in_rfp_letters,
+            include_privfleet=include_privfleet_in_rfp_letters,
         )
         st.download_button(
             label="⬇️ Download RFP letters (ZIP)",
@@ -1694,7 +1695,7 @@ col_d, col_e = st.columns(2)
 with col_d:
     reply_by = st.text_input("Reply-by date (e.g., 2025-01-15)", value="")
 with col_e:
-    include_greif_in_letters = st.checkbox("Include GREIF PRIVATE FLEET in letters", value=False)
+    include_privfleet_in_letters = st.checkbox("Include PRIVATE FLEET in letters", value=False)
 
 # --- NEW: editable intro template ---
 default_intro = (
@@ -1724,7 +1725,7 @@ if st.button("Build negotiation letters (ZIP)"):
     else:
         zip_bytes = build_letters_zip(
             df_all=combined_for_letters,
-            include_greif=include_greif_in_letters,
+            include_privfleet=include_privfleet_in_letters,
             sender_company=sender_company,
             sender_name=sender_name,
             sender_title=sender_title,
