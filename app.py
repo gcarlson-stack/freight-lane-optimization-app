@@ -1693,6 +1693,18 @@ combined_for_letters = pd.concat(
 combined_for_letters = combined_for_letters[
     combined_for_letters["action"] == "NEGOTIATE"
 ]
+if combined_for_letters.empty:
+    st.info(
+        "No lanes are currently flagged for negotiation letters. "
+        "All NEGOTIATE lanes have either been routed to the RFP or excluded "
+        "under the current filters and overrides."
+    )
+else:
+    st.success(
+        f"{combined_for_letters['carrier_name'].nunique()} carriers and "
+        f"{combined_for_letters['lane_key'].nunique()} unique lanes "
+        "are in scope for negotiation letters."
+    )
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
@@ -1732,7 +1744,7 @@ letter_body_template = st.text_area(
 
 if st.button("Build negotiation letters (ZIP)"):
     if combined_for_letters.empty:
-        st.warning("No data available to create letters.")
+        st.warning("No negotiation letters were generated because no lanes are currently marked to be negotiated outside of RFP.")
     else:
         zip_bytes = build_letters_zip(
             df_all=combined_for_letters,
