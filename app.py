@@ -1063,12 +1063,20 @@ with tab2:  # your RFP tab
         )
 
         st.markdown("**RFP Candidate Lanes (showing first 1,000 rows):**")
+        rfp_display_cols = [
+        "origin_city", "origin_state", "dest_city", "dest_state",
+        "lane_key",
+        "carrier_name",
+        "benchmark_cost",
+        "client_cost",
+        "delta",
+        "delta_pct",
+        "carrier_count",
+        "lane_treatment",
+        "action",
+        ]
         st.dataframe(
             rfp_df[[c for c in rfp_display_cols if c in rfp_df.columns]].head(1000),
-            width='stretch'
-        )
-        st.dataframe(
-            rfp_df[[c for c in rfp_display_cols if c in rfp_df.columns]],
             width='stretch'
         )
 
