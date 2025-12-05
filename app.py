@@ -528,7 +528,26 @@ def infer_sheets(upload):
         except Exception:
             return []
     return []
+@st.cache_data
+def read_any_cached(upload, sheet=None):
+    """Cached wrapper around read_any to avoid re-reading the same file."""
+    if upload is None:
+        return None
+    return read_any(upload, sheet=sheet)
 
+
+@st.cache_data
+def infer_sheets(upload):
+    if upload is None: 
+        return []
+    name = upload.name.lower()
+    if name.endswith((".xlsx", ".xlsm", ".xls", ".xlsb")):
+        try:
+            xl = pd.ExcelFile(upload)
+            return xl.sheet_names
+        except Exception:
+            return []
+    return []
 st.title("🚚 FLO.ai")
 
 st.markdown("""
@@ -603,7 +622,7 @@ client_mode_columns = ["<None>"]
 if client_file is not None:
     try:
         sheet_c_preview = None if client_sheet == "<first sheet>" else client_sheet
-        df_client_preview = read_any(client_file, sheet=sheet_c_preview)
+        df_client_preview = read_any(client_file, sheet_c_preview)
         client_mode_columns = ["<None>"] + list(df_client_preview.columns)
     except Exception as e:
         st.warning(f"Could not read client file to detect columns: {e}")
@@ -690,8 +709,8 @@ if run:
     sheet_b = None if bench_sheet == "<first sheet>" else bench_sheet
 
     try:
-        df_client = read_any(client_file, sheet=sheet_c)
-        df_bench = read_any(bench_file, sheet=sheet_b)
+        df_client = read_any(client_file, sheet_c)
+        df_bench = read_any(bench_file, sheet_b)
     except Exception as e:
         st.error(f"Error loading files: {e}")
         st.stop()
@@ -817,12 +836,12 @@ if run:
     merged["delta"] = merged["client_cost"] - merged["benchmark_cost"]
     
     # % difference vs benchmark
-    merged["delta_pct"] = merged.apply(
-        lambda r: (r["delta"] / r["benchmark_cost"] * 100.0)
-        if pd.notna(r["benchmark_cost"]) and r["benchmark_cost"] != 0
-        else None,
-        axis=1,
+    mask = merged["benchmark_cost"].notna() & (merged["benchmark_cost"] != 0)
+    merged["delta_pct"] = None
+    merged.loc[mask, "delta_pct"] = (
+        merged.loc[mask, "delta"] / merged.loc[mask, "benchmark_cost"] * 100.0
     )
+
     
     # NEGOTIATE flag
     merged["action"] = merged["delta"].apply(
@@ -964,7 +983,6 @@ rfp_df = out[out["lane_treatment"] == "RFP"].copy()
 letter_df = out[out["lane_treatment"] == "Letter"].copy()
 no_action_df = out[out["lane_treatment"] == "None"].copy()
 
-
 # --- derive lane counts & savings from 'out', 'letter_df', 'rfp_df' ---
 
 neg_mask_out = out["action"] == "NEGOTIATE"
@@ -1042,20 +1060,11 @@ with tab2:  # your RFP tab
             unsafe_allow_html=True,
         )
 
-        st.markdown("**RFP Candidate Lanes:**")
-        rfp_display_cols = [
-        "origin_city", "origin_state", "dest_city", "dest_state",
-        "lane_key",
-        "carrier_name",
-        "benchmark_cost",
-        "client_cost",
-        "delta",
-        "delta_pct",
-        "carrier_count",
-        "lane_treatment",
-        "action",
-        ]
-        
+        st.markdown("**RFP Candidate Lanes (showing first 1,000 rows):**")
+        st.dataframe(
+            rfp_df[[c for c in rfp_display_cols if c in rfp_df.columns]].head(1000),
+            width='stretch'
+        )
         st.dataframe(
             rfp_df[[c for c in rfp_display_cols if c in rfp_df.columns]],
             width='stretch'
@@ -1117,44 +1126,31 @@ with tab6:
     )
 
 # ============ Download Excel ============
-buf = io.BytesIO()
-with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-    # All non-Private Fleet lanes with treatment and flags
-    out.to_excel(writer, sheet_name="All_NonGREIF", index=False)
+def build_comparison_workbook():
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        out.to_excel(writer, sheet_name="All_NonGREIF", index=False)
+        letter_df.to_excel(writer, sheet_name="Letter_Lanes", index=False)
+        rfp_df.to_excel(writer, sheet_name="RFP_Lanes", index=False)
+        gpf_export.to_excel(writer, sheet_name="GREIF_Private_Fleet", index=False)
+        summary_df.to_excel(writer, sheet_name="Summary", index=False)
+        excluded_summary_df.to_excel(writer, sheet_name="Excluded_Summary", index=False)
+        (excluded_detail_df if not excluded_detail_df.empty else
+            pd.DataFrame(columns=["lane_key","carrier_name","excluded_matches"])) \
+            .to_excel(writer, sheet_name="Excluded_Detail", index=False)
+    buf.seek(0)
+    return buf.getvalue()
 
-    # Split views
-    letter_df.to_excel(writer, sheet_name="Letter_Lanes", index=False)
-    rfp_df.to_excel(writer, sheet_name="RFP_Lanes", index=False)
+if st.button("Prepare Excel comparison workbook"):
+    st.session_state["comparison_xlsx"] = build_comparison_workbook()
 
-    # GREIF
-    gpf_export.to_excel(writer, sheet_name="GREIF_Private_Fleet", index=False)
-
-    # Summary + exclusions
-    summary_df.to_excel(writer, sheet_name="Summary", index=False)
-    excluded_summary_df.to_excel(writer, sheet_name="Excluded_Summary", index=False)
-    (excluded_detail_df if not excluded_detail_df.empty else
-        pd.DataFrame(columns=["lane_key","carrier_name","excluded_matches"])) \
-        .to_excel(writer, sheet_name="Excluded_Detail", index=False)
-
-buf.seek(0)
-
-st.download_button(
-    label="⬇️ Download Excel (Comparison + GREIF + Summary + Exclusions)",
-    data=buf,
-    file_name="lane_comparison.xlsx",
-    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
-
-def read_any(upload, sheet=None):
-    name = upload.name.lower()
-    if name.endswith(".csv"):
-        return pd.read_csv(upload)
-    elif name.endswith((".xlsx", ".xlsm", ".xls")):
-        return pd.read_excel(upload, sheet_name=sheet)
-    elif name.endswith(".xlsb"):
-        return pd.read_excel(upload, engine="pyxlsb", sheet_name=sheet)
-    else:
-        raise ValueError("Unsupported file type. Please upload CSV/XLSX/XLS/XLSB.")
+if "comparison_xlsx" in st.session_state:
+    st.download_button(
+        label="⬇️ Download Excel (Comparison + GREIF + Summary + Exclusions)",
+        data=st.session_state["comparison_xlsx"],
+        file_name="lane_comparison.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 # ------------------ RFP Template Controls ------------------
 st.markdown("---")
