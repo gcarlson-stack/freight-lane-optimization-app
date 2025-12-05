@@ -1,0 +1,8 @@
+io
+streamlit
+pandas
+openpyxl
+python-docx
+pyxlsb
+numpy
+math
