@@ -560,6 +560,9 @@ From this, you can:
 - Generate an **RFP template** (Overview, Timeline, Bid Lanes, Locations)
 - Generate **RFP letters** to carriers participating in the bid
 - Generate **negotiation letters** for "non-vanilla" lanes flagged for direct rate review
+
+**Note**: when the program is running or loading, the screen will gray out and/or icons of a person doing different sports will appear in the top righthand corner.
+
 """)
 
 with st.sidebar:
