@@ -21,29 +21,33 @@ def _format_money(x):
 def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
     """
     Ensure df has origin_city, origin_state, dest_city, dest_state.
-    If missing, attempt to derive them from 'lane_detail' or 'lane_key'
-    using split_lane_detail.
+    If missing, derive them from 'lane_detail' (or 'Lane_Detail') or 'lane_key'
+    using split_lane_detail(), which must return 4 values.
     """
     needed = ["origin_city", "origin_state", "dest_city", "dest_state"]
     missing = [c for c in needed if c not in df.columns]
 
+    # If nothing is missing, just return
     if not missing:
         return df
 
-    # Choose source text: lane_detail if present, else lane_key
+    # Choose source text: lane_detail (or Lane_Detail) if present, else lane_key
     if "lane_detail" in df.columns:
         src = df["lane_detail"]
-    elif "Lane_Detail" in df.columns:   # optional: handle camel case
+    elif "Lane_Detail" in df.columns:
         src = df["Lane_Detail"]
     else:
         src = df["lane_key"]
 
-    # Parse into 4 columns
-    od = src.apply(lambda x: pd.Series(split_lane_detail(x)))
-    # Name the columns correctly so we can reference them by name
-    od.columns = needed
+    # Parse each row into the 4 components and assign directly by name
+    od = src.apply(
+        lambda x: pd.Series(
+            split_lane_detail(x),
+            index=["origin_city", "origin_state", "dest_city", "dest_state"],
+        )
+    )
 
-    # Only fill the ones that are truly missing
+    # Only fill columns that are missing
     for c in needed:
         if c not in df.columns:
             df[c] = od[c]
