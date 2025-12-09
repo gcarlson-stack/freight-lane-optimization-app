@@ -1008,13 +1008,13 @@ savings_diff = overall_total - combined_savings
 
 # ============ UI Output ============
 st.subheader("Output")
-st.markdown("This section contains 6 tabs with output from comparison exercise, including:
-        1) 🧾 Summary: Total savings opportunity across lanes to be included in RFP and in negotiation letters (including how many lanes are included in Private Fleet and excluded from any bid exercise).
-        2) 📦 RFP Candidates: Total number of lanes and value opportunity to be sent out to bid (included in RFP).
-        3) 📊 Letter Candidates: Total number of lanes and value opportunity to receive negotiation letter according to lanes specified in "RFP overrides."
-        4) 🚛 Private Fleet: Total number of lanes and value opportunity in Private Fleet lanes that are excluded from the comparison and analysis.
-        5) 🚫 Excluded (Summary): Total number of lanes excluded from comparison and analysis according to user-set exclusions (location, carrier, lane).
-        6) 🚫 Excluded (Detail): Lane by lane detail of exclusions.")
+st.markdown("This section contains 6 tabs with output from comparison exercise, including: \n"
+        "1) 🧾 Summary: Total savings opportunity across lanes to be included in RFP and in negotiation letters (including how many lanes are included in Private Fleet and excluded from any bid exercise).\n"
+        "2) 📦 RFP Candidates: Total number of lanes and value opportunity to be sent out to bid (included in RFP).\n"
+        "3) 📊 Letter Candidates: Total number of lanes and value opportunity to receive negotiation letter according to lanes specified in "RFP overrides."\n"
+        "4) 🚛 Private Fleet: Total number of lanes and value opportunity in Private Fleet lanes that are excluded from the comparison and analysis.\n"
+        "5) 🚫 Excluded (Summary): Total number of lanes excluded from comparison and analysis according to user-set exclusions (location, carrier, lane).\n"
+        "6) 🚫 Excluded (Detail): Lane by lane detail of exclusions.")
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🧾 Summary",
     "📦 RFP Candidates",
