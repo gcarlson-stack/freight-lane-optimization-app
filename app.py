@@ -21,14 +21,21 @@ def _format_money(x):
 def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
     """
     Ensure df has origin_city, origin_state, dest_city, dest_state.
-    If missing, derive them from 'lane_detail' (or 'Lane_Detail') or 'lane_key'
-    using split_lane_detail(), which must return 4 values.
+    If they are missing and df is not empty, derive them from lane_detail / Lane_Detail / lane_key
+    using split_lane_detail().
+    If df is empty, just add empty string columns.
     """
     needed = ["origin_city", "origin_state", "dest_city", "dest_state"]
-    missing = [c for c in needed if c not in df.columns]
 
-    # If nothing is missing, just return
-    if not missing:
+    # If all columns already exist, nothing to do
+    if all(c in df.columns for c in needed):
+        return df
+
+    # If the DF is empty, just add blank columns and return
+    if df.empty:
+        for c in needed:
+            if c not in df.columns:
+                df[c] = ""
         return df
 
     # Choose source text: lane_detail (or Lane_Detail) if present, else lane_key
@@ -39,7 +46,7 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
     else:
         src = df["lane_key"]
 
-    # Parse each row into the 4 components and assign directly by name
+    # Apply split_lane_detail row-by-row, naming the 4 outputs explicitly
     od = src.apply(
         lambda x: pd.Series(
             split_lane_detail(x),
@@ -47,7 +54,7 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    # Only fill columns that are missing
+    # Now od **always** has these 4 columns, even if df has only 1 row
     for c in needed:
         if c not in df.columns:
             df[c] = od[c]
@@ -988,14 +995,9 @@ if run:
         }
     ])
 
+    # After you’ve built gpf_export
     if not gpf_export.empty:
-        if lane_detail_col in gpf_rows.columns:
-            lane_src = gpf_rows[lane_detail_col]
-        else:
-            lane_src = gpf_rows["lane_key"]
-        gpf_export[["origin_city", "origin_state", "dest_city", "dest_state"]] = (
-            lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
-        )
+        gpf_export = ensure_origin_dest(gpf_export)
 
     # ---- store everything in session_state ----
     st.session_state["out"] = out
