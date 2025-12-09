@@ -96,7 +96,7 @@ def build_letter_docx(
     # ---- Aggregate to unique lanes with frequency ----
     # We group by origin/dest and compute:
     # - Frequency = number of rows (shipments) on that lane
-    # - Client Cost = average per-move client cost
+    # - Company Cost = average per-move company cost
     # - Benchmark Cost = average per-move benchmark cost
     # - % over Benchmark = average delta_pct
     lane_group = (
@@ -107,7 +107,7 @@ def build_letter_docx(
         )
         .agg(
             Frequency=("lane_key", "size"),
-            Client_Cost=("client_cost", "mean"),
+            Company_Cost=("company_cost", "mean"),
             Benchmark_Cost=("benchmark_cost", "mean"),
             Over_Pct=("delta_pct", "mean"),
         )
@@ -121,7 +121,7 @@ def build_letter_docx(
         "dest_city",
         "dest_state",
         "Frequency",
-        "Client_Cost",
+        "Company_Cost",
         "Benchmark_Cost",
         "Over_Pct",
     ]
@@ -134,7 +134,7 @@ def build_letter_docx(
         "Dest City",
         "Dest State",
         "Frequency",
-        "Client Cost",
+        "Company Cost",
         "Benchmark Cost",
         "% over Benchmark",
     ]
@@ -155,7 +155,7 @@ def build_letter_docx(
         cells[2].text = str(row["Dest City"])
         cells[3].text = str(row["Dest State"])
         cells[4].text = str(int(row["Frequency"])) if not pd.isna(row["Frequency"]) else ""
-        cells[5].text = _format_money(row["Client Cost"])
+        cells[5].text = _format_money(row["Company Cost"])
         cells[6].text = _format_money(row["Benchmark Cost"])
         if not pd.isna(row["% over Benchmark"]):
             cells[7].text = f"{row['% over Benchmark']:.0f}%"
@@ -195,7 +195,7 @@ def build_rfp_letter_docx(
     """
     Create a DOCX RFP letter for a specific carrier.
     Shows unique lanes with Frequency, top 10% by delta, a remaining summary row,
-    and a total row. Client/benchmark costs are per-trip (averages).
+    and a total row. Company/benchmark costs are per-trip (averages).
     """
     # Ensure origin/dest exists
     df_carrier = ensure_origin_dest(df_carrier.copy())
@@ -209,7 +209,7 @@ def build_rfp_letter_docx(
         )
         .agg(
             Frequency=("lane_key", "size"),
-            Client_Cost=("client_cost", "mean"),
+            Company_Cost=("company_cost", "mean"),
             Benchmark_Cost=("benchmark_cost", "mean"),
             Delta=("delta", "sum"),          # total $ variance per lane
             Over_Pct=("delta_pct", "mean"),  # avg % over benchmark
@@ -275,7 +275,7 @@ def build_rfp_letter_docx(
     # --- Build table: top 10% lanes + remaining summary + total row ---
     table_cols = [
         "Origin City", "Origin State", "Dest City", "Dest State",
-        "Frequency", "Client Cost", "Benchmark Cost",
+        "Frequency", "Company Cost", "Benchmark Cost",
         "% over Benchmark", "Total Delta",
     ]
 
@@ -304,7 +304,7 @@ def build_rfp_letter_docx(
         freq = row_data.get("Frequency", "")
         row_cells[4].text = str(int(freq)) if freq not in ("", None) and not pd.isna(freq) else ""
     
-        row_cells[5].text = _format_money(row_data.get("Client Cost"))
+        row_cells[5].text = _format_money(row_data.get("Company Cost"))
         row_cells[6].text = _format_money(row_data.get("Benchmark Cost"))
     
         pct = row_data.get("% over Benchmark", None)
@@ -324,7 +324,7 @@ def build_rfp_letter_docx(
             "Dest City": r["dest_city"],
             "Dest State": r["dest_state"],
             "Frequency": r["Frequency"],
-            "Client Cost": r["Client_Cost"],
+            "Company Cost": r["Company_Cost"],
             "Benchmark Cost": r["Benchmark_Cost"],
             "% over Benchmark": r["Over_Pct"],
             "Total Delta": r["Delta"],
@@ -340,7 +340,7 @@ def build_rfp_letter_docx(
             "Dest State": "",
             # Frequency column now shows total shipment volume for remaining lanes
             "Frequency": remaining_volume,
-            "Client Cost": None,
+            "Company Cost": None,
             "Benchmark Cost": None,
             "% over Benchmark": None,
             "Total Delta": remaining_delta,
@@ -355,7 +355,7 @@ def build_rfp_letter_docx(
         "Dest State": "",
         # Frequency column shows total shipment volume across all lanes
         "Frequency": total_volume,
-        "Client Cost": None,
+        "Company Cost": None,
         "Benchmark Cost": None,
         "% over Benchmark": None,
         "Total Delta": total_delta,
@@ -570,7 +570,7 @@ st.title("🚚 FLO.ai")
 st.markdown("""
 ### What this tool does
 
-This app compares your **client freight costs** to **benchmark rates**, then classifies each lane into:
+This app compares your **company freight costs** to **benchmark rates**, then classifies each lane into:
 - **RFP lanes** – lanes that will be included in a broader bid event
 - **Negotiation lanes** – "non-vanilla" lanes or lanes excluded from RFP for specific reasons that 
     will be handled via targeted vendor letters. Letters can also be used for monthly rate review, 
@@ -596,7 +596,7 @@ with st.sidebar:
 or make changes to any of the inputs while the page is loading.**
 
 **Step 1 – Upload data**
-1. Upload **Client** and **Benchmark** files.
+1. Upload **Company** and **Benchmark** files.
 2. Map the correct columns (lane, cost, carrier, mode).
 3. Add any **location, carrier, or mode exclusions**.
 
@@ -637,14 +637,15 @@ if "results_ready" not in st.session_state:
 # ============ Uploads ============
 colL, colR = st.columns(2)
 with colL:
-    st.subheader("Client file")
+    st.subheader("Company file")
     st.markdown("Upload a data export from your TMS system that contains lanes (origin and destination), carriers, base rate charged, transportation mode (e.g., TL). \n"
                 "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
-    client_file = st.file_uploader("Upload Client (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
+    client_file = st.file_uploader("Upload Company data (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
     client_sheets = infer_sheets(client_file)
-    client_sheet = st.selectbox("Client sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
-# Build list of client columns for dropdown (if file is uploaded)
+    client_sheet = st.selectbox("Company sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
+# Build list of company columns for dropdown (if file is uploaded)
 client_mode_columns = ["<None>"]
+df_client_preview = pd.DataFrame()
 if client_file is not None:
     try:
         sheet_c_preview = None if client_sheet == "<first sheet>" else client_sheet
@@ -666,15 +667,15 @@ st.markdown("---")
 
 # ============ Columns & Options ============
 st.subheader("Columns & Options")
-st.markdown("Please enter the names of the columns where each data can be found in the client and benchmark files.")
-c1, c2, c3 = st.columns(3)
+st.markdown("Please enter the names of the columns where each data can be found in the company and benchmark files.")
+c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    client_lane_col = st.text_input("Client lane column (key)", value="lane_key_compact")
-    client_cost_col = st.text_input("Client cost column", value="Total Base Charges")
-    client_carrier_col = st.text_input("Client carrier column", value="Carrier Name")
+    client_lane_col = st.text_input("Company lane column (key)", value="lane_key_compact")
+    company_cost_col = st.text_input("Copmany cost column", value="Total Base Charges")
+    client_carrier_col = st.text_input("Company carrier column", value="Carrier Name")
     lane_detail_col = st.text_input(
-        "Client lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
+        "Company lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
         value="Lane_Detail"
     )
 
@@ -700,11 +701,11 @@ with c4:
     extra_carriers = st.text_area("Carriers to exclude (comma-separated, case-insensitive)", placeholder="CARRIER A, CARRIER B")
 
 st.subheader("Mode Filter (exclude LTL, etc.)")
-st.markdown("Select the column from the dropdown that contains the transportation mode in the client data file. Then fill in the mode that is to be excluded.") 
+st.markdown("Select the column from the dropdown that contains the transportation mode in the company data file. Then fill in the mode that is to be excluded.") 
 m1, m2 = st.columns(2)
 with m1:
     mode_col = st.selectbox(
-        "Client mode column (LTL/TL)",
+        "Company mode column (LTL/TL)",
         options=client_mode_columns,
         index=0,  # "<None>" by default
         help="Choose the column that contains TL / LTL (or other mode) information."
@@ -742,7 +743,7 @@ run = st.button("Run comparison")
 if run:
     # ============ Load data ============
     if client_file is None or bench_file is None:
-        st.error("Please upload both Client and Benchmark files.")
+        st.error("Please upload both Company and Benchmark files.")
         st.stop()
 
     sheet_c = None if client_sheet == "<first sheet>" else client_sheet
@@ -756,11 +757,11 @@ if run:
         st.stop()
 
     # Validate columns
-    missing_client = [c for c in [client_lane_col, client_cost_col, client_carrier_col] if c not in df_client.columns]
+    missing_client = [c for c in [client_lane_col, company_cost_col, client_carrier_col] if c not in df_client.columns]
     missing_bench  = [c for c in [bench_lane_col, bench_cost_col] if c not in df_bench.columns]
     if missing_client:
-        st.error(f"Client file missing columns: {missing_client}")
-        st.write("Client columns:", list(df_client.columns))
+        st.error(f"Company file missing columns: {missing_client}")
+        st.write("Company columns:", list(df_client.columns))
         st.stop()
     if missing_bench:
         st.error(f"Benchmark file missing columns: {missing_bench}")
@@ -819,7 +820,7 @@ if run:
     df_bench["_lane"]  = df_bench[bench_lane_col].map(norm_lane)
     
     # --- select client columns, including lane detail if it exists ---
-    client_cols = [client_lane_col, client_carrier_col, client_cost_col, "_lane"]
+    client_cols = [client_lane_col, client_carrier_col, company_cost_col, "_lane"]
 
     if lane_detail_col in df_client.columns:
         client_cols.append(lane_detail_col)
@@ -831,7 +832,7 @@ if run:
     client_keep = df_client[client_cols].rename(columns={
         client_lane_col: "lane_key",
         client_carrier_col: "carrier_name",
-        client_cost_col: "client_cost",
+        company_cost_col: "company_cost",
         # if we kept separate city/state cols, rename them to the standard names
         **({origin_city_col:  "origin_city"}  if using_city_state_cols else {}),
         **({origin_state_col: "origin_state"} if using_city_state_cols else {}),
@@ -911,7 +912,7 @@ if run:
             )
     elif mode_col != "<None>" and mode_col not in client_keep.columns:
         st.warning(
-            f"Mode column '{mode_col}' not found in client data; "
+            f"Mode column '{mode_col}' not found in company data; "
             "no mode-based exclusions applied."
         )
     # if mode_col == "<None>", just do nothing
@@ -926,7 +927,7 @@ if run:
     merged = client_keep.merge(bench_agg_df, how="left", on="_lane")
     
     # dollar difference
-    merged["delta"] = merged["client_cost"] - merged["benchmark_cost"]
+    merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]
     
     # % difference vs benchmark
     mask = merged["benchmark_cost"].notna() & (merged["benchmark_cost"] != 0)
@@ -945,7 +946,7 @@ if run:
             "lane_key",
             "carrier_name",
             "benchmark_cost",
-            "client_cost",
+            "company_cost",
             "delta",
             "delta_pct",
             "action",
@@ -962,15 +963,15 @@ if run:
     # ============ GREIF (post-exclusion) ============
     gpf_rows = client_keep[client_keep["carrier_name"].astype(str).str.upper() == "GREIF PRIVATE FLEET"].copy()
     if gpf_rows.empty:
-        gpf_export = pd.DataFrame(columns=["lane_key","carrier_name","client_cost","benchmark_cost", "delta","action"])
+        gpf_export = pd.DataFrame(columns=["lane_key","carrier_name","company_cost","benchmark_cost", "delta","action"])
         gpf_count = 0
         gpf_negotiate_count = 0
         gpf_total_delta = 0.0
     else:
         gpf_merged = gpf_rows.merge(bench_agg_df, how="left", on="_lane")
-        gpf_merged["delta"] = gpf_merged["client_cost"] - gpf_merged["benchmark_cost"]
+        gpf_merged["delta"] = gpf_merged["company_cost"] - gpf_merged["benchmark_cost"]
         gpf_merged["action"] = gpf_merged["delta"].apply(lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None")
-        gpf_export = gpf_merged[["lane_key","carrier_name","client_cost","benchmark_cost","delta","action"]] \
+        gpf_export = gpf_merged[["lane_key","carrier_name","company_cost","benchmark_cost","delta","action"]] \
                             .sort_values("delta", ascending=False, na_position="last")
         gpf_count = int(gpf_export.shape[0])
         gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum())
@@ -1157,7 +1158,7 @@ with tab2:  # your RFP tab
             f"""
             <h4 style="text-align:center;">
                 📦 <b>RFP lanes to be negotiated:</b> {rfp_lane_count:,} &nbsp;&nbsp; | &nbsp;&nbsp;
-                <b>Total savings potential (client - benchmark):</b> ${rfp_total_savings:,.2f}
+                <b>Total savings potential (company - benchmark):</b> ${rfp_total_savings:,.2f}
             </h4>
             """,
             unsafe_allow_html=True,
@@ -1169,7 +1170,7 @@ with tab2:  # your RFP tab
         "lane_key",
         "carrier_name",
         "benchmark_cost",
-        "client_cost",
+        "company_cost",
         "delta",
         "delta_pct",
         "carrier_count",
@@ -1188,7 +1189,7 @@ with tab2:  # your RFP tab
         rfp_export_cols = [
             "origin_city", "origin_state", "dest_city", "dest_state",
             "lane_key", "carrier_name",
-            "benchmark_cost", "client_cost",
+            "benchmark_cost", "company_cost",
             "delta", "delta_pct",
             "carrier_count", "lane_treatment", "action",
         ]
@@ -1711,7 +1712,7 @@ Use negotiation letters when you **do not want a full RFP** for these lanes.
 This section will:
   - Use lanes marked as **Letter** in the comparison logic
   - Group lanes by carrier
-  - Show **unique lanes**, their **frequency**, **client vs benchmark cost**, and **% over benchmark**
+  - Show **unique lanes**, their **frequency**, **company vs benchmark cost**, and **% over benchmark**
 Letters are best for:
   - Smaller numbers of lanes
   - One-off rate reviews
