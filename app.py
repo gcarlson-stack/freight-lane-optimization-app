@@ -1185,22 +1185,22 @@ st.markdown("""
 
 Use this section when you are planning an **RFP event**:
 
-- The **RFP Template (Excel)** contains:
+The **RFP Template (Excel)** contains:
   - A cover sheet with overview, instructions, and contact info
   - A bid timeline
   - A tab of RFP lanes with **Market Rate** and fields for carrier input
   - A location list tab
 
-- The **RFP letters (by carrier)**:
+The **RFP letters (by carrier)**:
   - Reference the total number of lanes in the RFP
   - Highlight the lanes that carrier currently services above benchmark
-  - Show the **top 10% lanes with the largest variance**, plus summaries
+  - Show the **top 10% lanes with the largest variance**, plus summaries. Please note that the top 10% threshold cannot be adjusted. If there are certainly lanes to be excluded from the summary, please ensure they are entered in the 'RFP overrides' section above.
 """)
 st.subheader("📦 Build RFP Template (Excel)")
 
 # Overview text (Tab 1)
 overview_text = st.text_area(
-    "RFP overview text (Tab 1)",
+    "RFP overview text (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
     value="Greif, Inc. is a global manufacturer of industrial packaging products" 
         "and services, supplying fiber, steel, and plastic drums; intermediate " 
         "bulk containers; corrugated and paper-based packaging; and containerboard " 
@@ -1216,7 +1216,7 @@ overview_text = st.text_area(
 )
 
 instructions_text = st.text_area(
-    "RFP Instructions (Tab 1)",
+    "RFP Instructions (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
     value="Greif is continously looking to improve our ways of working and unlock efficiencies across our Supply Chain. "
         'Therefore, we are leveraging our volume and knowledge of market rates to complete a bid for several of our lanes and '
         'request that your company participate. \n'
@@ -1231,7 +1231,7 @@ instruction_lines = [line for line in instructions_text.split("\n") if line.stri
 
 # Timeline text (Tab 2)
 timeline_text = st.text_area(
-    "Bid timeline (Tab 2) – one line per milestone, format: Date, Milestone",
+    "Bid timeline (Tab 2) Please **revise the text below** to be specific to your company's RFP timeline. Any edits you make here will be reflected in the RFP template. Please enter as one line per milestone, format: Date, Milestone",
     value="4/22, Bid Release\n5/1, Round 1 Carrier Offers Due\n5/15, Round 1 "
     "[Company Name] Feedback to Carriers\n5/29, Round 2 Carrier Offers Due\n6/7, "
     "Round 2 [Company Name] Feedback to Carriers & Final Negotiations\n6/13, Final Awards",
@@ -1623,11 +1623,11 @@ st.subheader("✉️ Generate RFP Letters (by Carrier)")
 st.markdown("""
 Use negotiation letters when you **do not want a full RFP** for these lanes.
 
-- This section will:
+This section will:
   - Use lanes marked as **Letter** in the comparison logic
   - Group lanes by carrier
   - Show **unique lanes**, their **frequency**, **client vs benchmark cost**, and **% over benchmark**
-- Letters are best for:
+Letters are best for:
   - Smaller numbers of lanes
   - One-off rate reviews
   - Strategic/relationship-based negotiations
@@ -1636,13 +1636,13 @@ Use negotiation letters when you **do not want a full RFP** for these lanes.
 # Sender info can reuse the same as negotiation section, or separate:
 col_a, col_b, col_c = st.columns(3)
 with col_a:
-    rfp_sender_company = st.text_input("Your company name (RFP letters)", value="Greif")
+    rfp_sender_company = st.text_input("Your company name: Please enter the name of your company", value="Greif")
 with col_b:
-    rfp_sender_name = st.text_input("Your name (RFP letters)", value="Your Name")
+    rfp_sender_name = st.text_input("Your name: Please enter your name to be included in signature line", value="Your Name")
 with col_c:
-    rfp_sender_title = st.text_input("Your title (RFP letters)", value="Procurement Manager")
+    rfp_sender_title = st.text_input("Your title: Please enter your title to be included in signature line", value="Procurement Manager")
 
-rfp_reply_by = st.text_input("RFP reply-by date (for letter text)", value="")
+rfp_reply_by = st.text_input("RFP reply-by date: Please enter the deadline for vendors to respond", value="")
 
 # Default body text from your prompt
 rfp_default_body = (
@@ -1660,7 +1660,7 @@ rfp_default_body = (
 )
 
 rfp_body_template = st.text_area(
-    "RFP letter body (you can edit this text):",
+    "RFP letter body: Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP letters.",
     value=rfp_default_body,
     height=220,
 )
@@ -1714,15 +1714,15 @@ combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
 
 col_a, col_b, col_c = st.columns(3)
 with col_a:
-    sender_company = st.text_input("Your company name", value="Greif")
+    sender_company = st.text_input("Your company name: Please enter the name of your company", value="Greif")
 with col_b:
-    sender_name = st.text_input("Your name", value="Your Name")
+    sender_name = st.text_input("Your name: Please enter your name to be included in signature line", value="Your Name")
 with col_c:
-    sender_title = st.text_input("Your title", value="Procurement Manager")
+    sender_title = st.text_input("Your title: Please enter your title to be included in signature line", value="Procurement Manager")
 
 col_d, col_e = st.columns(2)
 with col_d:
-    reply_by = st.text_input("Reply-by date (e.g., 2025-01-15)", value="")
+    reply_by = st.text_input("Reply-by date (e.g., 2025-01-15):  Please enter the deadline for vendors to respond", value="")
 with col_e:
     include_privfleet_in_letters = st.checkbox("Include PRIVATE FLEET in letters", value=False)
 
@@ -1734,7 +1734,7 @@ default_intro = (
     "Please review and provide your best offer by {reply_by}."
 )
 
-st.markdown("**Negotiation letter body (you can edit this text):**")
+st.markdown("**Negotiation letter body**")
 st.caption(
     "Available placeholders: "
     "`{num_lanes}` = number of lanes in the letter, "
@@ -1743,8 +1743,8 @@ st.caption(
 )
 
 letter_body_template = st.text_area(
-    "Negotiation letter body (you can edit this text):",
-    value=default_intro,         # or whatever default you want
+    "Negotiation letter body: Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template",
+    value=default_intro, 
     height=120,
 )
 
