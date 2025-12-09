@@ -501,27 +501,29 @@ def norm_lane(x):
         return ""
     return str(x).strip().upper()
 
-def normalize_city_state_pair_from_cols(city, state) -> str:
+def build_compact_key(df, city_col, state_col, new_col_name):
     """
-    Take separate city and state values and normalize them to CITYSTATE form, e.g.:
-        city='Saint Louis', state='MO'  -> 'SAINTLOUISMO'
-        city='Atlanta',     state='GA'  -> 'ATLANTAGA'
-    If either is missing, it returns the non-empty part (still uppercased, spaces removed).
-    If both are missing / not strings, returns ''.
+    Build a compact 'CITYSTATE' lane key from separate city/state columns.
+    Example: 'DETROIT' + 'MI' -> 'DETROITMI'
+
+    - df:          DataFrame to modify in-place
+    - city_col:    column with city names
+    - state_col:   column with state codes
+    - new_col_name: name of the resulting lane-key column
     """
-    parts = []
-    if isinstance(city, str):
-        c = city.strip().upper()
-        if c:
-            # Remove spaces (SOUTH BEND -> SOUTHBEND)
-            parts.append(c.replace(" ", ""))
-    if isinstance(state, str):
-        s = state.strip().upper()
-        if s:
-            parts.append(s.replace(" ", ""))
-    if not parts:
-        return ""
-    return "".join(parts)
+    # If either column is missing, do nothing
+    if city_col not in df.columns or state_col not in df.columns:
+        return df
+
+    city = df[city_col].astype(str).str.strip().str.upper()
+    state = df[state_col].astype(str).str.strip().str.upper()
+
+    # Remove spaces so 'SAINT LOUIS' + 'MO' -> 'SAINTLOUISMO'
+    city = city.str.replace(" ", "", regex=False)
+    state = state.str.replace(" ", "", regex=False)
+
+    df[new_col_name] = city + state
+    return df
 
 def read_any(upload, sheet=None):
     name = upload.name.lower()
@@ -756,9 +758,41 @@ if run:
         st.error(f"Error loading files: {e}")
         st.stop()
 
-    # Validate columns
-    missing_client = [c for c in [client_lane_col, company_cost_col, client_carrier_col] if c not in df_client.columns]
-    missing_bench  = [c for c in [bench_lane_col, bench_cost_col] if c not in df_bench.columns]
+        # ---------- Optionally build lane_key from city/state BEFORE validation ----------
+
+    # Only try to build a compact key if the user chose city/state columns
+    using_city_state = (
+        origin_city_col  != "<None>" and
+        origin_state_col != "<None>" and
+        dest_city_col    != "<None>" and
+        dest_state_col   != "<None>"
+    )
+
+    # If the user mapped city/state columns and the lane key column doesn't exist yet,
+    # build it from the mapped origin columns.
+    if using_city_state and client_lane_col not in df_client.columns:
+        st.info(
+            f"Client lane column '{client_lane_col}' not found. "
+            f"Building it from origin city/state columns "
+            f"('{origin_city_col}' + '{origin_state_col}')."
+        )
+        df_client = build_compact_key(
+            df_client,
+            city_col=origin_city_col,
+            state_col=origin_state_col,
+            new_col_name=client_lane_col,
+        )
+
+    # ---------- Now validate columns (after any auto-build) ----------
+    missing_client = [
+        c for c in [client_lane_col, client_cost_col, client_carrier_col]
+        if c not in df_client.columns
+    ]
+    missing_bench = [
+        c for c in [bench_lane_col, bench_cost_col]
+        if c not in df_bench.columns
+    ]
+
     if missing_client:
         st.error(f"Company file missing columns: {missing_client}")
         st.write("Company columns:", list(df_client.columns))
