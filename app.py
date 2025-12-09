@@ -561,7 +561,8 @@ From this, you can:
 - Generate **RFP letters** to carriers participating in the bid
 - Generate **negotiation letters** for "non-vanilla" lanes flagged for direct rate review
 
-**Note**: when the program is running or loading, the screen will gray out and/or icons of a person doing different sports will appear in the top righthand corner.
+**Note: when the program is running or loading, the screen will "gray out" and/or icons of a person doing different sports will appear in the top righthand corner. Please do not refresh the page 
+or make changes to any of the inputs while the page is loading.**
 
 """)
 
@@ -616,7 +617,7 @@ colL, colR = st.columns(2)
 with colL:
     st.subheader("Client file")
     st.markdown("Upload a data export from your TMS system that contains lanes (origin and destination), carriers, base rate charged, transportation mode (e.g., TL). \n"
-                "Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.")
+                "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
     client_file = st.file_uploader("Upload Client (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
     client_sheets = infer_sheets(client_file)
     client_sheet = st.selectbox("Client sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
@@ -633,7 +634,7 @@ if client_file is not None:
 with colR:
     st.subheader("Benchmark file")
     st.markdown("Upload a data export from your benchmark source (e.g., DAT) that contains lanes (origin and destination) and base rate charged. \n"
-                "Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.")
+                "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
     bench_file = st.file_uploader("Upload Benchmark (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="bench")
     bench_sheets = infer_sheets(bench_file)
     bench_sheet = st.selectbox("Benchmark sheet (optional)", options=["<first sheet>"] + bench_sheets if bench_sheets else ["<first sheet>"])
