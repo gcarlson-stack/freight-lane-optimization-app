@@ -1007,7 +1007,8 @@ combined_savings = letter_savings + rfp_savings
 savings_diff = overall_total - combined_savings
 
 # ============ UI Output ============
-st.subheader("Output")
+st.markdown("---")
+st.subheader("Output (Results of FLO.ai rate comparison)")
 st.markdown(
     "This section contains 6 tabs for the output from the comparison exercise, including: \n"
     "1) 🧾 Summary: Total savings opportunity across lanes to be included in RFP and in negotiation letters (including how many lanes are included in Private Fleet and excluded from any bid exercise).\n"
@@ -1042,7 +1043,7 @@ with tab1:
 
     st.markdown("---")
     st.markdown("### Savings Consistency Check (Non-Private Fleet)")
-
+    st.markdown("Savings check ensures that savings identified for RFP lanes and negotiation letter lanes are equal to the total savings identified in the original rate comparison. In other words, this check ensures no lanes are double counted or unaccounted for in the output.")
     st.markdown(
         f"- Total savings potential (Summary, non-Private Fleet): **${overall_total:,.2f}**  \n"
         f"- Savings from Vendor Letters (non-Private Fleet lanes): **${letter_savings:,.2f}**  \n"
