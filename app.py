@@ -785,7 +785,7 @@ if run:
 
     # ---------- Now validate columns (after any auto-build) ----------
     missing_client = [
-        c for c in [client_lane_col, client_cost_col, client_carrier_col]
+        c for c in [client_lane_col, company_cost_col, client_carrier_col]
         if c not in df_client.columns
     ]
     missing_bench = [
