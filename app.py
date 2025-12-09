@@ -1014,7 +1014,7 @@ st.markdown("This section contains 6 tabs with output from comparison exercise, 
         3) 📊 Letter Candidates: Total number of lanes and value opportunity to receive negotiation letter according to lanes specified in "RFP overrides."
         4) 🚛 Private Fleet: Total number of lanes and value opportunity in Private Fleet lanes that are excluded from the comparison and analysis.
         5) 🚫 Excluded (Summary): Total number of lanes excluded from comparison and analysis according to user-set exclusions (location, carrier, lane).
-        6) 🚫 Excluded (Detail): Lane by lane detail of exclusions.
+        6) 🚫 Excluded (Detail): Lane by lane detail of exclusions.")
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🧾 Summary",
     "📦 RFP Candidates",
