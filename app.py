@@ -815,7 +815,11 @@ if run:
 
     if lane_detail_col in df_client.columns:
         client_cols.append(lane_detail_col)
-
+    if mode_col != "<None>" and mode_col in df_client.columns: 
+        client_cols.append(mode_col) 
+    client_keep = df_client[client_cols].rename(columns={ 
+        client_lane_col: "lane_key", client_carrier_col: "carrier_name", client_cost_col: "client_cost" 
+    })
     # --- add origin/dest columns if we DON'T already have them ---
     needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
     if not needed_od.issubset(client_keep.columns):
