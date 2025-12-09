@@ -806,51 +806,8 @@ if run:
 
     df_client = df_client.copy()
     df_bench = df_bench.copy()
-    
-    using_city_state_cols = all(
-        x not in ("", "<None>") and x in df_client.columns
-        for x in [origin_city_col, origin_state_col, dest_city_col, dest_state_col]
-    )
 
-    if using_city_state_cols:
-        # normalized CITYSTATE pairs, e.g. SAINTLOUISMO
-        df_client["origin_pair_norm"] = df_client.apply(
-            lambda r: normalize_city_state_pair_from_cols(
-                r[origin_city_col], r[origin_state_col]
-            ),
-            axis=1,
-        )
-        df_client["dest_pair_norm"] = df_client.apply(
-            lambda r: normalize_city_state_pair_from_cols(
-                r[dest_city_col], r[dest_state_col]
-            ),
-            axis=1,
-        )
-
-        # expose clean origin/dest columns for downstream logic
-        df_client["origin_city"]  = df_client[origin_city_col]
-        df_client["origin_state"] = df_client[origin_state_col]
-        df_client["dest_city"]    = df_client[dest_city_col]
-        df_client["dest_state"]   = df_client[dest_state_col]
-
-        # optional “clean” lane key from city/state
-        df_client["lane_key_from_city_state"] = (
-            df_client["origin_pair_norm"].fillna("") +
-            df_client["dest_pair_norm"].fillna("")
-        )
-
-        st.info(
-            "Built normalized city/state pairs from separate columns and created "
-            "'origin_pair_norm', 'dest_pair_norm', and 'lane_key_from_city_state'."
-        )
-
-    # ---------- CHANGED: choose which column to use as lane key for matching ----------
-    if using_city_state_cols and "lane_key_from_city_state" in df_client.columns:
-        lane_for_match = "lane_key_from_city_state"
-    else:
-        lane_for_match = client_lane_col
-
-    df_client["_lane"] = df_client[lane_for_match].map(norm_lane)
+    df_client["_lane"] = df_client[client_lane_col].map(norm_lane)
     df_bench["_lane"]  = df_bench[bench_lane_col].map(norm_lane)
     
     # --- select client columns, including lane detail if it exists ---
@@ -858,21 +815,6 @@ if run:
 
     if lane_detail_col in df_client.columns:
         client_cols.append(lane_detail_col)
-
-    # NEW: if we built origin/dest city/state, keep those columns too
-    if using_city_state_cols:
-        client_cols.extend([origin_city_col, origin_state_col, dest_city_col, dest_state_col])
-
-    client_keep = df_client[client_cols].rename(columns={
-        client_lane_col: "lane_key",
-        client_carrier_col: "carrier_name",
-        company_cost_col: "company_cost",
-        # if we kept separate city/state cols, rename them to the standard names
-        **({origin_city_col:  "origin_city"}  if using_city_state_cols else {}),
-        **({origin_state_col: "origin_state"} if using_city_state_cols else {}),
-        **({dest_city_col:    "dest_city"}    if using_city_state_cols else {}),
-        **({dest_state_col:   "dest_state"}   if using_city_state_cols else {}),
-    })
 
     # --- add origin/dest columns if we DON'T already have them ---
     needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
