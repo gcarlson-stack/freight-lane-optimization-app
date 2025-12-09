@@ -1716,9 +1716,9 @@ col_a, col_b, col_c = st.columns(3)
 with col_a:
     sender_company = st.text_input("Your company name: Please enter your company name", value="Greif")
 with col_b:
-    sender_name = st.text_input("Your name: Please enter your name to be included in signature line", value="Your Name")
+    sender_name = st.text_input("Your name: Please enter your name which will be included in signature line", value="Your Name")
 with col_c:
-    sender_title = st.text_input("Your title: Please enter your title to be included in signature line", value="Procurement Manager")
+    sender_title = st.text_input("Your title: Please enter your title which will be included in signature line", value="Procurement Manager")
 
 col_d, col_e = st.columns(2)
 with col_d:
