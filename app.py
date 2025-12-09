@@ -33,12 +33,17 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
     # Choose source text: lane_detail if present, else lane_key
     if "lane_detail" in df.columns:
         src = df["lane_detail"]
+    elif "Lane_Detail" in df.columns:   # optional: handle camel case
+        src = df["Lane_Detail"]
     else:
         src = df["lane_key"]
 
+    # Parse into 4 columns
     od = src.apply(lambda x: pd.Series(split_lane_detail(x)))
+    # Name the columns correctly so we can reference them by name
     od.columns = needed
 
+    # Only fill the ones that are truly missing
     for c in needed:
         if c not in df.columns:
             df[c] = od[c]
