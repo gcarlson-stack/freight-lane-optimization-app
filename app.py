@@ -957,14 +957,8 @@ if run:
         gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum())
         gpf_total_delta = float(gpf_export.loc[gpf_export["action"] == "NEGOTIATE", "delta"].sum(skipna=True))
         # Add origin/dest columns for Private Fleet lanes
-    if lane_detail_col in gpf_rows.columns:
-        lane_src = gpf_rows[lane_detail_col]
-    else:
-        lane_src = gpf_rows["lane_key"]
-    
-    gpf_export[["origin_city", "origin_state", "dest_city", "dest_state"]] = (
-        lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
-    )
+    gpf_export = ensure_origin_dest(gpf_export)
+
     # ============ Summary ============
     neg_mask = out["action"] == "NEGOTIATE"
     overall_count = int(neg_mask.sum())
