@@ -719,10 +719,24 @@ with c3:
     bench_agg = st.selectbox("Benchmark duplicate lanes aggregation", options=["mean","median"], index=0)
 
 with c4:
-    st.caption("Fixed location exclusions applied automatically:")
-    st.code(", ".join(FIXED_EXCLUDE_LOCATIONS), language=None)
-    extra_locations = st.text_area("Extra locations to exclude (ALL CAPS, comma-separated)", placeholder="ATLANTAGA, CHICAGOIL, BOSTONMA")
-    extra_carriers = st.text_area("Carriers to exclude (comma-separated, case-insensitive)", placeholder="CARRIER A, CARRIER B")
+    apply_fixed_exclusions = st.checkbox(
+        "Apply default location exclusions",
+        value=True,  # default ON, same behavior as before
+        help="If checked, the default list of locations will be excluded."
+    )
+
+    if apply_fixed_exclusions:
+        st.caption("Default locations currently excluded:")
+        st.code(", ".join(FIXED_EXCLUDE_LOCATIONS), language=None)
+
+    extra_locations = st.text_area(
+        "Extra locations to exclude (ALL CAPS, comma-separated)",
+        placeholder="ATLANTAGA, CHICAGOIL, BOSTONMA"
+    )
+    extra_carriers = st.text_area(
+        "Carriers to exclude (comma-separated, case-insensitive)",
+        placeholder="CARRIER A, CARRIER B"
+    )
 
 st.subheader("Mode Filter (exclude LTL, etc.)")
 st.markdown("Select the column from the dropdown that contains the transportation mode in the company data file. Then fill in the mode that is to be excluded.") 
@@ -880,6 +894,13 @@ if run:
     # ============ Apply exclusions ============
     # Locations
     exclude_locations = FIXED_EXCLUDE_LOCATIONS.copy()
+    # ============ Apply exclusions ============
+    # Locations
+    if apply_fixed_exclusions:
+        exclude_locations = FIXED_EXCLUDE_LOCATIONS.copy()
+    else:
+        exclude_locations = []
+    
     if extra_locations:
         extra_locs_list = [x.strip().upper() for x in extra_locations.split(",") if x.strip()]
         exclude_locations.extend(extra_locs_list)
