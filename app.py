@@ -61,6 +61,12 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def _clean_cs(x):
+    """Clean city/state component for lane_key_compact: uppercase, no spaces."""
+    if pd.isna(x):
+        return ""
+    return str(x).strip().upper().replace(" ", "")
+
 def build_letter_docx(
     carrier: str,
     df_carrier: pd.DataFrame,
@@ -778,25 +784,38 @@ if run:
 
     # Only try to build a compact key if the user chose city/state columns
     using_city_state = (
-        origin_city_col  != "<None>" and
-        origin_state_col != "<None>" and
-        dest_city_col    != "<None>" and
-        dest_state_col   != "<None>"
+        origin_city_col  not in ("<None>", None, "") and
+        origin_state_col not in ("<None>", None, "") and
+        dest_city_col    not in ("<None>", None, "") and
+        dest_state_col   not in ("<None>", None, "")
     )
 
     # If the user mapped city/state columns and the lane key column doesn't exist yet,
-    # build it from the mapped origin columns.
+    # build it as ORIGCITY+ORIGSTATE+DESTCITY+DESTSTATE (no spaces, all caps).
     if using_city_state and client_lane_col not in df_client.columns:
+        missing_any = [
+            c for c in [origin_city_col, origin_state_col, dest_city_col, dest_state_col]
+            if c not in df_client.columns
+        ]
+        if missing_any:
+            st.error(
+                f"Client lane column '{client_lane_col}' is missing and the mapped "
+                f"city/state columns {missing_any} are not found in the client data."
+            )
+            st.write("Company columns:", list(df_client.columns))
+            st.stop()
+
         st.info(
             f"Client lane column '{client_lane_col}' not found. "
-            f"Building it from origin city/state columns "
-            f"('{origin_city_col}' + '{origin_state_col}')."
+            "Building it from origin/dest city & state columns "
+            f"('{origin_city_col}', '{origin_state_col}', '{dest_city_col}', '{dest_state_col}')."
         )
-        df_client = build_compact_key(
-            df_client,
-            city_col=origin_city_col,
-            state_col=origin_state_col,
-            new_col_name=client_lane_col,
+
+        df_client[client_lane_col] = (
+            df_client[origin_city_col].apply(_clean_cs)
+            + df_client[origin_state_col].apply(_clean_cs)
+            + df_client[dest_city_col].apply(_clean_cs)
+            + df_client[dest_state_col].apply(_clean_cs)
         )
 
     # ---------- Now validate columns (after any auto-build) ----------
