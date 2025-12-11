@@ -1017,7 +1017,7 @@ if run:
     # If exclude_modes is empty, quietly do nothing
 
     # ============ Build benchmark aggregate (one row per lane) ============
-    group_cols = ["_lane"] + (["_mode"] if use_mode_matching else [])
+    group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
 
     if bench_agg == "median":
         bench_agg_df = bench_keep.groupby(group_cols, as_index=False, dropna=False)["benchmark_cost"].median()
