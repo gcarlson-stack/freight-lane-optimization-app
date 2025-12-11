@@ -1028,8 +1028,8 @@ if run:
         merged = client_keep.merge(
             bench_agg_df,
             how="left",
-            left_on=["_lane", "_mode"],
-            right_on=["_lane", "_mode"]
+            left_on=["_lane", "mode"],
+            right_on=["_lane", "mode"]
         )
     else:
         merged = client_keep.merge(bench_agg_df, how="left", on="_lane")
