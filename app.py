@@ -986,11 +986,11 @@ if run:
         st.info(f"Carrier exclusions removed {before - len(client_keep)} rows.")
 
     # ============ Mode exclusions (e.g., exclude LTL) ============
-    if mode_col != "<None>" and mode_col in client_keep.columns and exclude_modes_raw.strip():
+    if "mode" in client_keep.columns and exclude_modes_raw.strip():
         exclude_modes = [m.strip().upper() for m in exclude_modes_raw.split(",") if m.strip()]
         before = len(client_keep)
         client_keep = client_keep[
-            ~client_keep[mode_col].astype(str).str.upper().isin(exclude_modes)
+            ~client_keep["mode"].astype(str).str.upper().isin(exclude_modes)
         ]
         removed = before - len(client_keep)
         if removed > 0:
@@ -998,12 +998,16 @@ if run:
                 f"Mode exclusions removed {removed} rows "
                 f"(modes excluded: {', '.join(exclude_modes)})."
             )
-    elif mode_col != "<None>" and mode_col not in client_keep.columns:
+    
+    elif mode_col != "<None>" and not mode_in_upload:
+        # User picked a mode column name, but it wasn't in the uploaded file
         st.warning(
             f"Mode column '{mode_col}' not found in company data; "
             "no mode-based exclusions applied."
         )
-    # if mode_col == "<None>", just do nothing
+    # else:
+    # - mode_col == "<None>"  → user chose not to use a mode column
+    #   or mode column present but user left exclusions blank → silently do nothing
 
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["_mode"] if use_mode_matching else [])
