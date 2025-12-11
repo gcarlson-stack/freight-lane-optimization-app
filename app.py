@@ -986,28 +986,35 @@ if run:
         st.info(f"Carrier exclusions removed {before - len(client_keep)} rows.")
 
     # ============ Mode exclusions (e.g., exclude LTL) ============
-    if "mode" in client_keep.columns and exclude_modes_raw.strip():
-        exclude_modes = [m.strip().upper() for m in exclude_modes_raw.split(",") if m.strip()]
-        before = len(client_keep)
-        client_keep = client_keep[
-            ~client_keep["mode"].astype(str).str.upper().isin(exclude_modes)
-        ]
-        removed = before - len(client_keep)
-        if removed > 0:
-            st.info(
-                f"Mode exclusions removed {removed} rows "
-                f"(modes excluded: {', '.join(exclude_modes)})."
-            )
+    # exclude_modes_raw is your text input: "LTL, PARCEL", etc.
     
-    elif mode_col != "<None>" and not in df_client.columns:
-        # User picked a mode column name, but it wasn't in the uploaded file
-        st.warning(
-            f"Mode column '{mode_col}' not found in company data; "
-            "no mode-based exclusions applied."
-        )
-    # else:
-    # - mode_col == "<None>"  → user chose not to use a mode column
-    #   or mode column present but user left exclusions blank → silently do nothing
+    exclude_modes = [
+        m.strip().upper()
+        for m in exclude_modes_raw.split(",")
+        if m.strip()
+    ]
+    
+    if exclude_modes:
+        if use_mode_matching and "mode" in client_keep.columns:
+            # We have a real mode field (TL/LTL/etc.) and user wants exclusions
+            before = len(client_keep)
+            client_keep = client_keep[
+                ~client_keep["mode"].astype(str).str.upper().isin(exclude_modes)
+            ]
+            removed = before - len(client_keep)
+            if removed > 0:
+                st.info(
+                    f"Mode exclusions removed {removed} rows "
+                    f"(modes excluded: {', '.join(exclude_modes)})."
+                )
+        else:
+            # Either the user turned mode matching off, or the mode columns
+            # weren’t mapped correctly when building _mode earlier.
+            st.warning(
+                "Mode-based exclusions were requested, but mode matching is not enabled "
+                "or no valid mode column is available. No mode-based exclusions applied."
+            )
+    # If exclude_modes is empty, quietly do nothing
 
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["_mode"] if use_mode_matching else [])
