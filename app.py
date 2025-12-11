@@ -677,6 +677,15 @@ if client_file is not None:
         client_mode_columns = ["<None>"] + list(df_client_preview.columns)
     except Exception as e:
         st.warning(f"Could not read client file to detect columns: {e}")
+
+bench_mode_columns = ["<None>"]
+if bench_file is not None:
+    try:
+        sheet_b_preview = None if bench_sheet == "<first sheet>" else bench_sheet
+        df_bench_preview = read_any_cached(bench_file, sheet_b_preview)
+        bench_mode_columns = ["<None>"] + list(df_bench_preview.columns)
+    except Exception as e:
+        st.warning(f"Could not read benchmark file to detect columns: {e}")
         
 with colR:
     st.subheader("Benchmark file")
@@ -701,6 +710,19 @@ with c1:
     lane_detail_col = st.text_input(
         "Company lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
         value="Lane_Detail"
+    )
+    mode_col = st.selectbox(
+        "Client mode column (TL / LTL)",
+        options=client_mode_columns,
+        index=0,
+        help="Choose the column in the client file that indicates TL vs LTL (or other modes)."
+    )
+    # Benchmark mode column
+    bench_mode_col = st.selectbox(
+        "Benchmark mode column (TL / LTL)",
+        options=bench_mode_columns,
+        index=0,
+        help="Choose the column in the benchmark file that indicates TL vs LTL (or other modes)."
     )
 
 with c2:
@@ -793,9 +815,16 @@ if run:
     except Exception as e:
         st.error(f"Error loading files: {e}")
         st.stop()
-
-        # ---------- Optionally build lane_key from city/state BEFORE validation ----------
-
+    
+    # --- Determine whether both datasets have mode columns mapped ---
+    client_has_mode = (mode_col not in ("<None>", None, "") 
+                       and mode_col in df_client.columns)
+    bench_has_mode = (bench_mode_col not in ("<None>", None, "") 
+                      and bench_mode_col in df_bench.columns)
+    
+    use_mode_matching = client_has_mode and bench_has_mode
+    
+    # ---------- Optionally build lane_key from city/state BEFORE validation ----------
     # Only try to build a compact key if the user chose city/state columns
     using_city_state = (
         origin_city_col  not in ("<None>", None, "") and
@@ -858,17 +887,40 @@ if run:
 
     df_client["_lane"] = df_client[client_lane_col].map(norm_lane)
     df_bench["_lane"]  = df_bench[bench_lane_col].map(norm_lane)
+
+    def norm_mode(series):
+        return (
+            series.astype(str)
+                  .str.strip()
+                  .str.upper()
+                  .replace({
+                      "TRUCKLOAD": "TL",
+                      "TL": "TL",
+                      "LTL": "LTL",
+                      "LESS THAN TRUCKLOAD": "LTL",
+                  })
+        )
+
+    if use_mode_matching:
+        df_client["_mode"] = norm_mode(df_client[mode_col])
+        df_bench["_mode"]  = norm_mode(df_bench[bench_mode_col])
+    else:
+        # default placeholder for mode so merge still works safely
+        df_client["_mode"] = "DEFAULT"
+        df_bench["_mode"]  = "DEFAULT"
     
     # --- select client columns, including lane detail if it exists ---
-    client_cols = [client_lane_col, client_carrier_col, company_cost_col, "_lane"]
-
+    client_cols = [client_lane_col, client_carrier_col, company_cost_col, "_lane", "_mode"]
     if lane_detail_col in df_client.columns:
         client_cols.append(lane_detail_col)
-    if mode_col != "<None>" and mode_col in df_client.columns: 
-        client_cols.append(mode_col) 
-    client_keep = df_client[client_cols].rename(columns={ 
-        client_lane_col: "lane_key", client_carrier_col: "carrier_name", company_cost_col: "company_cost" 
+    
+    client_keep = df_client[client_cols].rename(columns={
+        client_lane_col: "lane_key",
+        client_carrier_col: "carrier_name",
+        company_cost_col: "company_cost",
+        "_mode": "mode"
     })
+
     # --- add origin/dest columns if we DON'T already have them ---
     needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
     if not needed_od.issubset(client_keep.columns):
@@ -882,8 +934,11 @@ if run:
             lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
         )
     
-    bench_keep = df_bench[["_lane", bench_cost_col]].rename(
-        columns={bench_cost_col: "benchmark_cost"}
+    bench_keep = df_bench[["_lane", "_mode", bench_cost_col]].rename(
+        columns={
+            bench_cost_col: "benchmark_cost",
+            "_mode": "mode"
+        }
     )
     
     bench_keep["benchmark_cost"] = pd.to_numeric(
@@ -894,8 +949,6 @@ if run:
     # ============ Apply exclusions ============
     # Locations
     exclude_locations = FIXED_EXCLUDE_LOCATIONS.copy()
-    # ============ Apply exclusions ============
-    # Locations
     if apply_fixed_exclusions:
         exclude_locations = FIXED_EXCLUDE_LOCATIONS.copy()
     else:
@@ -955,12 +1008,23 @@ if run:
 
 
     # ============ Build benchmark aggregate (one row per lane) ============
+    group_cols = ["_lane"] + ([" _mode"] if use_mode_matching else [])
+
     if bench_agg == "median":
-        bench_agg_df = bench_keep.groupby("_lane", as_index=False, dropna=False)["benchmark_cost"].median()
+        bench_agg_df = bench_keep.groupby(group_cols, as_index=False, dropna=False)["benchmark_cost"].median()
     else:
-        bench_agg_df = bench_keep.groupby("_lane", as_index=False, dropna=False)["benchmark_cost"].mean()
-    
-    merged = client_keep.merge(bench_agg_df, how="left", on="_lane")
+        bench_agg_df = bench_keep.groupby(group_cols, as_index=False, dropna=False)["benchmark_cost"].mean()
+        
+    if use_mode_matching:
+        merged = client_keep.merge(
+            bench_agg_df,
+            how="left",
+            left_on=["_lane", "_mode"],
+            right_on=["_lane", "_mode"]
+        )
+    else:
+        merged = client_keep.merge(bench_agg_df, how="left", on="_lane")
+
     
     # dollar difference
     merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]
@@ -981,6 +1045,7 @@ if run:
         [
             "lane_key",
             "carrier_name",
+            "mode",
             "benchmark_cost",
             "company_cost",
             "delta",
