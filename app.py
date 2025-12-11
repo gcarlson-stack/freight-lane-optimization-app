@@ -677,7 +677,14 @@ if client_file is not None:
         client_mode_columns = ["<None>"] + list(df_client_preview.columns)
     except Exception as e:
         st.warning(f"Could not read client file to detect columns: {e}")
-
+        
+with colR:
+    st.subheader("Benchmark file")
+    st.markdown("Upload a data export from your benchmark source (e.g., DAT) that contains lanes (origin and destination) and base rate charged. \n"
+                "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
+    bench_file = st.file_uploader("Upload Benchmark (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="bench")
+    bench_sheets = infer_sheets(bench_file)
+    bench_sheet = st.selectbox("Benchmark sheet (optional)", options=["<first sheet>"] + bench_sheets if bench_sheets else ["<first sheet>"])
 bench_mode_columns = ["<None>"]
 if bench_file is not None:
     try:
@@ -687,14 +694,6 @@ if bench_file is not None:
     except Exception as e:
         st.warning(f"Could not read benchmark file to detect columns: {e}")
         
-with colR:
-    st.subheader("Benchmark file")
-    st.markdown("Upload a data export from your benchmark source (e.g., DAT) that contains lanes (origin and destination) and base rate charged. \n"
-                "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
-    bench_file = st.file_uploader("Upload Benchmark (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="bench")
-    bench_sheets = infer_sheets(bench_file)
-    bench_sheet = st.selectbox("Benchmark sheet (optional)", options=["<first sheet>"] + bench_sheets if bench_sheets else ["<first sheet>"])
-
 st.markdown("STOP - loading both files will likely take a few minutes. Please wait for the upload to complete before moving forward.")
 st.markdown("---")
 
