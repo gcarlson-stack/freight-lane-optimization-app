@@ -999,7 +999,7 @@ if run:
                 f"(modes excluded: {', '.join(exclude_modes)})."
             )
     
-    elif mode_col != "<None>" and not df_client.columns:
+    elif mode_col != "<None>" and not in df_client.columns:
         # User picked a mode column name, but it wasn't in the uploaded file
         st.warning(
             f"Mode column '{mode_col}' not found in company data; "
