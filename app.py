@@ -667,6 +667,39 @@ with colL:
     client_file = st.file_uploader("Upload Company data (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
     client_sheets = infer_sheets(client_file)
     client_sheet = st.selectbox("Company sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
+    
+    st.caption("If you don’t have a company file yet, download the template below, fill it in, and re-upload it as the company data.")
+
+    # -------- Company template download --------
+    template_cols = [
+        "Origin City",
+        "Origin State",
+        "Dest City",
+        "Dest State",
+        "Total Base Charges",  # map this to company_cost_col
+        "Carrier Name",      # map this to client_carrier_col
+        "Carrier Mode",      # map this to mode_col
+    ]
+
+    template_df = pd.DataFrame(columns=template_cols)
+
+    tmpl_buf = io.BytesIO()
+    with pd.ExcelWriter(tmpl_buf, engine="openpyxl") as writer:
+        template_df.to_excel(
+            writer,
+            index=False,
+            sheet_name="Company Data Template",
+        )
+    tmpl_buf.seek(0)
+
+    st.download_button(
+        label="⬇️ Download Company Data Template (Excel)",
+        data=tmpl_buf,
+        file_name="company_data_template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
 # Build list of company columns for dropdown (if file is uploaded)
 client_mode_columns = ["<None>"]
 df_client_preview = pd.DataFrame()
