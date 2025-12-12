@@ -668,7 +668,7 @@ with colL:
     client_sheets = infer_sheets(client_file)
     client_sheet = st.selectbox("Company sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
     
-    st.caption("If you don’t have a company file yet, download the template below, fill it in, and re-upload it as the company data.")
+    st.caption("If you don’t have a formatted company file with carrier names and modes, origin, destination, and base rate charged, download the template below, fill it in, and re-upload it as the company data.")
 
     # -------- Company template download --------
     template_cols = [
