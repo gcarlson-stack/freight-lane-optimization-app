@@ -1353,10 +1353,10 @@ with tab6:
 def build_comparison_workbook():
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as writer:
-        out.to_excel(writer, sheet_name="All_NonGREIF", index=False)
+        out.to_excel(writer, sheet_name="All_NonPrivateFleet", index=False)
         letter_df.to_excel(writer, sheet_name="Letter_Lanes", index=False)
         rfp_df.to_excel(writer, sheet_name="RFP_Lanes", index=False)
-        gpf_export.to_excel(writer, sheet_name="GREIF_Private_Fleet", index=False)
+        gpf_export.to_excel(writer, sheet_name="Private_Fleet", index=False)
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
         excluded_summary_df.to_excel(writer, sheet_name="Excluded_Summary", index=False)
         (excluded_detail_df if not excluded_detail_df.empty else
