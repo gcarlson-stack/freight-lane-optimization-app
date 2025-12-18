@@ -44,7 +44,7 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
     elif "Lane_Detail" in df.columns:
         src = df["Lane_Detail"]
     else:
-        src = df["lane_key"]
+        src = df["_lane"]
 
     # Apply split_lane_detail row-by-row, naming the 4 outputs explicitly
     od = src.apply(
@@ -128,7 +128,7 @@ def build_letter_docx(
             dropna=False
         )
         .agg(
-            Frequency=("lane_key", "size"),
+            Frequency=("_lane", "size"),
             Company_Cost=("company_cost", "mean"),
             Benchmark_Cost=("benchmark_cost", "mean"),
             Over_Pct=("delta_pct", "mean"),
@@ -230,7 +230,7 @@ def build_rfp_letter_docx(
             dropna=False
         )
         .agg(
-            Frequency=("lane_key", "size"),
+            Frequency=("_lane", "size"),
             Company_Cost=("company_cost", "mean"),
             Benchmark_Cost=("benchmark_cost", "mean"),
             Delta=("delta", "sum"),          # total $ variance per lane
@@ -451,7 +451,7 @@ def build_rfp_letters_zip(
         buff.seek(0)
         return buff.read()
 
-    total_rfp_lanes = int(df_all["lane_key"].nunique())
+    total_rfp_lanes = int(df_all["_lane"].nunique())
 
     buff = BytesIO()
     with ZipFile(buff, "w", ZIP_DEFLATED) as zf:
@@ -776,7 +776,7 @@ with c1:
         index=0,
         help="Choose the column in the company data file that has the carrier names.")
     lane_detail_col = st.text_input(
-        "Company lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
+        "Company lane detail column (e.g., 'Lane_Detail' or '_lane')",
         value="Lane_Detail"
     )
     mode_col = st.selectbox(
@@ -863,7 +863,7 @@ st.markdown("Provide lane names that are to be excluded from the RFP. Ensure lan
 letter_override_raw = st.text_area(
     "Lane keys to treat as Vendor Letters instead of RFP (comma or newline separated)",
     placeholder="Example: ATLANTAGADALLASTX, CHICAGOILHOUSTONTX",
-    help="Provide lane_key values exactly as they appear in the output (e.g., ORIGINSTATEDESTSTATE). "
+    help="Provide _lane values exactly as they appear in the output (e.g., ORIGINSTATEDESTSTATE). "
          "Any lane listed here will be handled via vendor letters instead of RFP."
 )
 
@@ -905,7 +905,7 @@ if run:
     
     use_mode_matching = client_has_mode and bench_has_mode
     
-    # ---------- Optionally build lane_key from city/state BEFORE validation ----------
+    # ---------- Optionally build _lane from city/state BEFORE validation ----------
     # Only try to build a compact key if the user chose city/state columns
     using_city_state = (
         origin_city_col  not in ("<None>", None, "") and
@@ -1050,7 +1050,7 @@ if run:
     
     client_keep = df_client[client_cols_to_keep].rename(
         columns={
-            client_lane_col: "lane_key",
+            client_lane_col: "_lane",
             client_carrier_col: "carrier_name",
             "_mode": "mode",
         }
@@ -1059,11 +1059,11 @@ if run:
     # --- add origin/dest columns if we DON'T already have them ---
     needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
     if not needed_od.issubset(client_keep.columns):
-        # fall back to parsing from lane_detail or lane_key
+        # fall back to parsing from lane_detail or _lane
         if lane_detail_col in client_keep.columns:
             lane_src = client_keep[lane_detail_col]
         else:
-            lane_src = client_keep["lane_key"]
+            lane_src = client_keep["_lane"]
         
         client_keep[["origin_city", "origin_state", "dest_city", "dest_state"]] = (
             lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
@@ -1118,14 +1118,14 @@ if run:
         extra_locs_list = [x.strip().upper() for x in extra_locations.split(",") if x.strip()]
         exclude_locations.extend(extra_locs_list)
 
-    client_keep["lane_key_upper"] = client_keep["lane_key"].astype(str).str.upper()
+    client_keep["lane_key_upper"] = client_keep["_lane"].astype(str).str.upper()
 
     def match_locs(text):
         return [loc for loc in exclude_locations if loc in text]
 
     client_keep["excluded_matches"] = client_keep["lane_key_upper"].apply(match_locs)
     mask_loc_excl = client_keep["excluded_matches"].str.len().fillna(0).gt(0)
-    excluded_detail_df = client_keep.loc[mask_loc_excl, ["lane_key", "carrier_name", "excluded_matches"]].copy()
+    excluded_detail_df = client_keep.loc[mask_loc_excl, ["_lane", "carrier_name", "excluded_matches"]].copy()
     excluded_exploded = excluded_detail_df.explode("excluded_matches")
     if len(excluded_exploded):
         excluded_summary_df = (
@@ -1209,13 +1209,13 @@ if run:
         merged = client_keep.merge(
             bench_agg_df,
             how="left",
-            on=["lane_key", "mode"],
+            on=["_lane", "mode"],
         )
     else:
         merged = client_keep.merge(
             bench_agg_df,
             how="left",
-            on="lane_key",
+            on="_lane",
         )
 
     # If there is truly no benchmark match for a lane, keep 0 on the benchmark side
@@ -1240,7 +1240,7 @@ if run:
 
     out = merged[
         [
-            "lane_key",
+            "_lane",
             "carrier_name",
             "mode",
             "company_linehaul",
@@ -1267,7 +1267,7 @@ if run:
     # ============ GREIF (post-exclusion) ============
     gpf_rows = client_keep[client_keep["carrier_name"].astype(str).str.upper() == "GREIF PRIVATE FLEET"].copy()
     if gpf_rows.empty:
-        gpf_export = pd.DataFrame(columns=["lane_key","carrier_name","company_cost","benchmark_cost", "delta","action"])
+        gpf_export = pd.DataFrame(columns=["_lane","carrier_name","company_cost","benchmark_cost", "delta","action"])
         gpf_count = 0
         gpf_negotiate_count = 0
         gpf_total_delta = 0.0
@@ -1275,7 +1275,7 @@ if run:
         gpf_merged = gpf_rows.merge(bench_agg_df, how="left", on="_lane")
         gpf_merged["delta"] = gpf_merged["company_cost"] - gpf_merged["benchmark_cost"]
         gpf_merged["action"] = gpf_merged["delta"].apply(lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None")
-        gpf_export = gpf_merged[["lane_key","carrier_name","company_cost","benchmark_cost","delta","action"]] \
+        gpf_export = gpf_merged[["_lane","carrier_name","company_cost","benchmark_cost","delta","action"]] \
                             .sort_values("delta", ascending=False, na_position="last")
         gpf_count = int(gpf_export.shape[0])
         gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum())
@@ -1347,7 +1347,7 @@ gpf_total_delta = float(
 # ============ RFP vs Letter vs No-Action Classification ============
 
 # lane_key normalized for matching overrides
-out["lane_key_norm"] = out["lane_key"].astype(str).str.strip().str.upper()
+out["lane_key_norm"] = out["_lane"].astype(str).str.strip().str.upper()
 
 def classify_row(row):
     """
@@ -1482,7 +1482,7 @@ with tab2:  # your RFP tab
 
         st.markdown("**RFP Candidate Lanes (showing first 1,000 rows):**")
         base_display_cols = [
-            "lane_key",
+            "_lane",
             "carrier_name",
             "company_linehaul",
             "company_fuel_cost",
@@ -1523,7 +1523,7 @@ with tab2:  # your RFP tab
         # Optionally subset columns for RFP template
         rfp_export_cols = [
             "origin_city", "origin_state", "dest_city", "dest_state",
-            "lane_key", "carrier_name",
+            "_lane", "carrier_name",
             "benchmark_cost", "company_cost",
             "delta", "delta_pct",
             "carrier_count", "lane_treatment", "action",
@@ -1568,7 +1568,7 @@ with tab5:
 with tab6:
     st.dataframe(
         excluded_detail_df if not excluded_detail_df.empty
-        else pd.DataFrame(columns=["lane_key", "carrier_name", "excluded_matches"]),
+        else pd.DataFrame(columns=["_lane", "carrier_name", "excluded_matches"]),
         width='stretch'
     )
 
@@ -1583,7 +1583,7 @@ def build_comparison_workbook():
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
         excluded_summary_df.to_excel(writer, sheet_name="Excluded_Summary", index=False)
         (excluded_detail_df if not excluded_detail_df.empty else
-            pd.DataFrame(columns=["lane_key","carrier_name","excluded_matches"])) \
+            pd.DataFrame(columns=["_lane","carrier_name","excluded_matches"])) \
             .to_excel(writer, sheet_name="Excluded_Detail", index=False)
     buf.seek(0)
     return buf.getvalue()
@@ -1693,7 +1693,7 @@ if not rfp_df.empty:
         rfp_df
         .groupby(lane_cols, dropna=False)
         .agg(
-            Shipment_Count=("lane_key", "size"),
+            Shipment_Count=("_lane", "size"),
             Market_Rate=("benchmark_cost", "mean")
         )
         .reset_index()
@@ -2125,7 +2125,7 @@ if neg_letter_df.empty:
 else:
     st.success(
         f"{neg_letter_df['carrier_name'].nunique()} carriers and "
-        f"{neg_letter_df['lane_key'].nunique()} unique lanes "
+        f"{neg_letter_df['_lane'].nunique()} unique lanes "
         "are in scope for negotiation letters."
     )
 # Combine only Letter lanes (non-Private Fleet) + all other lanes lanes (if included)
