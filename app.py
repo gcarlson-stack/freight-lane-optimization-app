@@ -21,9 +21,12 @@ def _format_money(x):
 def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
     """
     Ensure df has origin_city, origin_state, dest_city, dest_state.
-    If they are missing and df is not empty, derive them from lane_detail / Lane_Detail / lane_key
-    using split_lane_detail().
-    If df is empty, just add empty string columns.
+
+    Priority for source text:
+      1. 'lane_detail'
+      2. 'Lane_Detail'
+      3. '_lane'
+    If none of these exist, we just add empty-string columns and return.
     """
     needed = ["origin_city", "origin_state", "dest_city", "dest_state"]
 
@@ -38,13 +41,20 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
                 df[c] = ""
         return df
 
-    # Choose source text: lane_detail (or Lane_Detail) if present, else lane_key
+    # Choose source text
     if "lane_detail" in df.columns:
         src = df["lane_detail"]
     elif "Lane_Detail" in df.columns:
         src = df["Lane_Detail"]
-    else:
+    elif "_lane" in df.columns:
+        # Only use _lane if it actually exists
         src = df["_lane"]
+    else:
+        # No usable source column; just create empty columns and return
+        for c in needed:
+            if c not in df.columns:
+                df[c] = ""
+        return df
 
     # Apply split_lane_detail row-by-row, naming the 4 outputs explicitly
     od = src.apply(
@@ -54,7 +64,7 @@ def ensure_origin_dest(df: pd.DataFrame) -> pd.DataFrame:
         )
     )
 
-    # Now od **always** has these 4 columns, even if df has only 1 row
+    # Fill missing origin/dest columns from parsed result
     for c in needed:
         if c not in df.columns:
             df[c] = od[c]
@@ -1057,24 +1067,6 @@ if run:
             client_carrier_col: "carrier_name",
             "_mode": "mode",
         }
-    )
-
-    # Linehaul (benchmark) as numeric
-    df_bench["benchmark_linehaul"] = pd.to_numeric(
-        df_bench[bench_linehaul_col], errors="coerce"
-    )
-
-   # Linehaul numeric
-    df_bench["benchmark_linehaul"] = pd.to_numeric(
-        df_bench[bench_linehaul_col], errors="coerce"
-    )
-    
-    # Fuel percentage -> fraction using the robust parser
-    bench_fuel_pct = parse_percent_col(df_bench[bench_fuel_pct_col])
-    
-    df_bench["benchmark_fuel_cost"] = df_bench["benchmark_linehaul"] * bench_fuel_pct
-    df_bench["benchmark_cost"] = (
-        df_bench["benchmark_linehaul"] + df_bench["benchmark_fuel_cost"]
     )
     
     # ============ Apply exclusions ============
@@ -2146,7 +2138,7 @@ if st.button("Build negotiation letters (ZIP)"):
     combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
 
     # Optionally add GREIF lanes that are NEGOTIATE
-    if include_greif_in_letters and not gpf_export.empty:
+    if include_privfleet_in_letters and not gpf_export.empty:
         greif_neg = gpf_export[gpf_export["action"] == "NEGOTIATE"].copy()
         greif_neg["source"] = "GREIF"
         combined_for_letters = pd.concat(
@@ -2163,7 +2155,7 @@ if st.button("Build negotiation letters (ZIP)"):
     else:
         zip_bytes = build_letters_zip(
             df_all=combined_for_letters,
-            include_greif=include_greif_in_letters,
+            include_privfleet=include_privfleet_in_letters,
             sender_company=sender_company,
             sender_name=sender_name,
             sender_title=sender_title,
