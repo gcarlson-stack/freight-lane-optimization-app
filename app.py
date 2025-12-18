@@ -1065,7 +1065,7 @@ if run:
         else:
             lane_src = client_keep["_lane"]
 
-        # Apply split_lane_detail and explicitly name the 4 outputs
+        # Turn each lane string into a 4-element Series with explicit names
         od = lane_src.apply(
             lambda x: pd.Series(
                 split_lane_detail(x),
@@ -1073,28 +1073,9 @@ if run:
             )
         )
 
-        # Assign each column separately to avoid shape/key issues
+        # Assign each column separately so shapes always match
         for col in ["origin_city", "origin_state", "dest_city", "dest_state"]:
             client_keep[col] = od[col]
-
-    # --- build benchmark linehaul + fuel + total ---
-
-    # bench_cost_col (from the sidebar) should point to the **linehaul** rate column
-    bench_linehaul_col = bench_cost_col
-
-    # HARD-CODED fuel column name for now – change if your column name is different,
-    # or expose it as another text_input like bench_linehaul_col
-    bench_fuel_pct_col = "Fuel surcharge"   # e.g. values like "30%" or 0.30
-
-    # Make sure both columns exist
-    missing_bench_extra = [
-        c for c in [bench_linehaul_col, bench_fuel_pct_col]
-        if c not in df_bench.columns
-    ]
-    if missing_bench_extra:
-        st.error(f"Benchmark file missing linehaul/fuel columns: {missing_bench_extra}")
-        st.write("Benchmark columns:", list(df_bench.columns))
-        st.stop()
 
     # Linehaul (benchmark) as numeric
     df_bench["benchmark_linehaul"] = pd.to_numeric(
