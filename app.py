@@ -547,6 +547,18 @@ def build_compact_key(df, city_col, state_col, new_col_name):
     df[new_col_name] = city + state
     return df
 
+def _parse_pct(series: pd.Series) -> pd.Series:
+    """
+    Convert a column like '30%' or 30 into a decimal fraction 0.30.
+    If values are already decimals (<=1), leave them as-is.
+    """
+    s = series.astype(str).str.strip().str.replace("%", "", regex=False)
+    vals = pd.to_numeric(s, errors="coerce")
+
+    if vals.max(skipna=True) is not None and vals.max(skipna=True) <= 1.0:
+        return vals  # already decimals
+    return vals / 100.0
+
 def read_any(upload, sheet=None):
     name = upload.name.lower()
     if name.endswith(".csv"):
@@ -738,6 +750,7 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     client_lane_col = st.text_input("Company lane column (key)", value="lane_key_compact")
     company_cost_col = st.text_input("Copmany cost column", value="Total Base Charges")
+    company_fuel_col = st.text_input("Company fuel surcharge $ column (optional)", value="Fuel surcharge")
     client_carrier_col = st.text_input("Company carrier column", value="Carrier Name")
     lane_detail_col = st.text_input(
         "Company lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
@@ -770,6 +783,7 @@ with c2:
 with c3:
     bench_lane_col = st.text_input("Benchmark lane column", value="lane_key_compact")
     bench_cost_col = st.text_input("Benchmark cost column", value="Cost")
+    bench_fuel_col = st.text_input("Benchmark fuel surcharge % column (optional)", value="Fuel surcharge")
     bench_agg = st.selectbox("Benchmark duplicate lanes aggregation", options=["mean","median"], index=0)
 
 with c4:
@@ -940,16 +954,60 @@ if run:
         # default placeholder for mode so merge still works safely
         df_client["_mode"] = "DEFAULT"
         df_bench["_mode"]  = "DEFAULT"
+   
+    df_client["company_linehaul"] = pd.to_numeric(
+        df_client[company_cost_col], errors="coerce"
+    )
+    
+    company_has_fuel = (
+        company_fuel_col not in (None, "", "<None>")
+        and company_fuel_col in df_client.columns
+    )
+    
+    if company_has_fuel:
+        # company fuel surcharge is already a $ amount per lane
+        df_client["company_fuel_cost"] = pd.to_numeric(
+            df_client[company_fuel_col], errors="coerce"
+        )
+    else:
+        df_client["company_fuel_cost"] = 0.0
+    
+    # total company cost = linehaul + fuel
+    df_client["company_cost"] = df_client["company_linehaul"] + df_client["company_fuel_cost"]
+    
+    
+    # ===== BENCHMARK: linehaul + fuel (% of linehaul) =====
+    df_bench["benchmark_linehaul"] = pd.to_numeric(
+        df_bench[bench_cost_col], errors="coerce"
+    )
+    
+    bench_has_fuel = (
+        bench_fuel_col not in (None, "", "<None>")
+        and bench_fuel_col in df_bench.columns
+    )
+    
+    if bench_has_fuel:
+        bench_fuel_pct = _parse_pct(df_bench[bench_fuel_col])        # 30% → 0.30
+        df_bench["benchmark_fuel_cost"] = df_bench["benchmark_linehaul"] * bench_fuel_pct
+    else:
+        df_bench["benchmark_fuel_cost"] = 0.0
     
     # --- select client columns, including lane detail if it exists ---
-    client_cols = [client_lane_col, client_carrier_col, company_cost_col, "_lane", "_mode"]
+    client_cols = [
+        client_lane_col,
+        client_carrier_col,
+        "company_cost",           # total
+        "company_linehaul",
+        "company_fuel_cost",
+        "_lane",
+        "_mode",
+    ]
     if lane_detail_col in df_client.columns:
         client_cols.append(lane_detail_col)
-    
+
     client_keep = df_client[client_cols].rename(columns={
         client_lane_col: "lane_key",
         client_carrier_col: "carrier_name",
-        company_cost_col: "company_cost",
         "_mode": "mode"
     })
 
@@ -966,11 +1024,8 @@ if run:
             lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
         )
     
-    bench_keep = df_bench[["_lane", "_mode", bench_cost_col]].rename(
-        columns={
-            bench_cost_col: "benchmark_cost",
-            "_mode": "mode"
-        }
+    bench_keep = df_bench[["_lane", "_mode", "benchmark_linehaul", "benchmark_fuel_cost"]].rename(
+        columns={"_mode": "mode"}
     )
     
     bench_keep["benchmark_cost"] = pd.to_numeric(
@@ -1052,11 +1107,17 @@ if run:
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
 
-    if bench_agg == "median":
-        bench_agg_df = bench_keep.groupby(group_cols, as_index=False, dropna=False)["benchmark_cost"].median()
-    else:
-        bench_agg_df = bench_keep.groupby(group_cols, as_index=False, dropna=False)["benchmark_cost"].mean()
-        
+    agg_func = "median" if bench_agg == "median" else "mean"
+
+    bench_agg_df = (
+        bench_keep
+        .groupby(group_cols, as_index=False, dropna=False)
+        .agg(
+            benchmark_linehaul=("benchmark_linehaul", agg_func),
+            benchmark_fuel_cost=("benchmark_fuel_cost", agg_func),
+        )
+    )
+
     if use_mode_matching:
         merged = client_keep.merge(
             bench_agg_df,
@@ -1067,17 +1128,27 @@ if run:
     else:
         merged = client_keep.merge(bench_agg_df, how="left", on="_lane")
 
-    # dollar difference
-    merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]
-    
-    # % difference vs benchmark
+   # fill missing benchmark components with 0 so totals/deltas make sense
+    merged["benchmark_linehaul"] = merged["benchmark_linehaul"].fillna(0.0)
+    merged["benchmark_fuel_cost"] = merged["benchmark_fuel_cost"].fillna(0.0)
+
+    # total benchmark cost = linehaul + fuel
+    merged["benchmark_cost"] = merged["benchmark_linehaul"] + merged["benchmark_fuel_cost"]
+
+    # company_cost is already total (linehaul + fuel) from earlier
+    # dollar differences
+    merged["delta_linehaul"] = merged["company_linehaul"] - merged["benchmark_linehaul"]
+    merged["delta_fuel"] = merged["company_fuel_cost"] - merged["benchmark_fuel_cost"]
+    merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]  # total
+
+    # % difference vs total benchmark
     mask = merged["benchmark_cost"].notna() & (merged["benchmark_cost"] != 0)
     merged["delta_pct"] = None
     merged.loc[mask, "delta_pct"] = (
         merged.loc[mask, "delta"] / merged.loc[mask, "benchmark_cost"] * 100.0
     )
 
-    # NEGOTIATE flag
+    # NEGOTIATE flag based on total delta
     merged["action"] = merged["delta"].apply(
         lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None"
     )
@@ -1087,8 +1158,14 @@ if run:
             "lane_key",
             "carrier_name",
             "mode",
-            "benchmark_cost",
-            "company_cost",
+            "company_linehaul",
+            "company_fuel_cost",
+            "company_cost",          # total
+            "benchmark_linehaul",
+            "benchmark_fuel_cost",
+            "benchmark_cost",        # total
+            "delta_linehaul",
+            "delta_fuel",
             "delta",
             "delta_pct",
             "action",
@@ -1122,9 +1199,19 @@ if run:
     gpf_export = ensure_origin_dest(gpf_export)
 
     # ============ Summary ============
-    neg_mask = out["action"] == "NEGOTIATE"
-    overall_count = int(neg_mask.sum())
-    overall_total = float(out.loc[neg_mask, "delta"].sum(skipna=True))
+    neg_mask_out = out["action"] == "NEGOTIATE"
+    overall_count = int(neg_mask_out.sum())
+    
+    # Scenario 1: only linehaul is negotiated; fuel surcharges left as-is
+    linehaul_savings = float(
+        out.loc[neg_mask_out, "delta_linehaul"].clip(lower=0).sum(skipna=True)
+    )
+    
+    # Scenario 2: both linehaul and fuel negotiated
+    fuel_savings = float(
+        out.loc[neg_mask_out, "delta_fuel"].clip(lower=0).sum(skipna=True)
+    )
+    overall_total = linehaul_savings + fuel_savings  # total savings if both are negotiated
 
     summary_df = pd.DataFrame([
         {
@@ -1246,6 +1333,12 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 with tab1:
+    st.markdown("### Savings scenarios")
+    st.markdown(
+        f"- **Scenario 1 – Linehaul only:** ${linehaul_savings:,.2f}  \n"
+        f"- **Scenario 2 – Linehaul + fuel:** ${overall_total:,.2f} "
+        f"(includes ${fuel_savings:,.2f} from fuel surcharges)"
+    )
     st.markdown(
         f"""
         <h4 style="text-align:center;">
@@ -1299,15 +1392,20 @@ with tab2:  # your RFP tab
         base_display_cols = [
             "lane_key",
             "carrier_name",
-            "benchmark_cost",
+            "company_linehaul",
+            "company_fuel_cost",
             "company_cost",
+            "benchmark_linehaul",
+            "benchmark_fuel_cost",
+            "benchmark_cost",
+            "delta_linehaul",
+            "delta_fuel",
             "delta",
             "delta_pct",
             "carrier_count",
             "lane_treatment",
             "action",
         ]
-
         od_cols = ["origin_city", "origin_state", "dest_city", "dest_state"]
         rfp_display_cols = base_display_cols.copy()
         # Check whether ALL origin/dest values are blank / NaN
