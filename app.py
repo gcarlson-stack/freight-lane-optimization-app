@@ -1024,10 +1024,15 @@ if run:
     df_client["company_cost"] = df_client["company_linehaul"] + df_client["company_fuel_cost"]
     
     # ----- BENCHMARK: linehaul + fuel + total -----
+    # ----- BENCHMARK: mode handling -----
+    # Mode should only come from a column if the user selected one.
+    # If the user selected "<None>", assign a default mode for all rows.
     
-    # Make sure "mode" exists on benchmark side using the selected mode column
-    df_bench["mode"] = df_bench[bench_mode_col]
-    
+    if bench_mode_col and bench_mode_col != "<None>" and bench_mode_col in df_bench.columns:
+        df_bench["mode"] = df_bench[bench_mode_col].astype(str).str.upper()
+    else:
+        df_bench["mode"] = "DEFAULT"
+        
     # Linehaul ($)
     df_bench["benchmark_linehaul"] = pd.to_numeric(
         df_bench[bench_cost_col],
