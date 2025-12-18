@@ -1057,6 +1057,7 @@ if run:
     )
 
     # --- add origin/dest columns if we DON'T already have them ---
+        # --- add origin/dest columns if we DON'T already have them ---
     needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
     if not needed_od.issubset(client_keep.columns):
         # fall back to parsing from lane_detail or _lane
@@ -1065,17 +1066,22 @@ if run:
         else:
             lane_src = client_keep["_lane"]
 
-        # Turn each lane string into a 4-element Series with explicit names
-        od = lane_src.apply(
-            lambda x: pd.Series(
-                split_lane_detail(x),
-                index=["origin_city", "origin_state", "dest_city", "dest_state"],
-            )
+        # split_lane_detail(x) should return a 4-tuple/list:
+        # (origin_city, origin_state, dest_city, dest_state)
+        split_vals = lane_src.apply(split_lane_detail)
+
+        # Explicitly build a DataFrame with the correct column names
+        od_df = pd.DataFrame(
+            split_vals.tolist(),
+            index=lane_src.index,
+            columns=["origin_city", "origin_state", "dest_city", "dest_state"],
         )
 
-        # Assign each column separately so shapes always match
-        for col in ["origin_city", "origin_state", "dest_city", "dest_state"]:
-            client_keep[col] = od[col]
+        # Assign each column to client_keep
+        client_keep["origin_city"] = od_df["origin_city"]
+        client_keep["origin_state"] = od_df["origin_state"]
+        client_keep["dest_city"] = od_df["dest_city"]
+        client_keep["dest_state"] = od_df["dest_state"]
 
     # Linehaul (benchmark) as numeric
     df_bench["benchmark_linehaul"] = pd.to_numeric(
