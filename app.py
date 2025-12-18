@@ -1010,32 +1010,46 @@ if run:
     # total company cost = linehaul + fuel
     df_client["company_cost"] = df_client["company_linehaul"] + df_client["company_fuel_cost"]
     
-    # ===== BENCHMARK: linehaul + fuel (% of linehaul) =====
+    # ----- BENCHMARK: linehaul + fuel + total -----
+    
+    # Make sure "mode" exists on benchmark side using the selected mode column
+    df_bench["mode"] = df_bench[bench_mode_col]
+    
+    # Linehaul ($)
     df_bench["benchmark_linehaul"] = pd.to_numeric(
-        df_bench[bench_cost_col], errors="coerce"
+        df_bench[bench_cost_col],
+        errors="coerce",
     )
     
-    bench_has_fuel = (
-        bench_fuel_col not in (None, "", "<None>")
-        and bench_fuel_col in df_bench.columns
-    )
-    
-    if bench_has_fuel:
-        bench_fuel_pct = parse_percent_col(df_bench[bench_fuel_col])        # 30% → 0.30
+    # Fuel surcharge (%) -> decimal fraction, if we have a column selected
+    if bench_fuel_col != "<None>" and bench_fuel_col in df_bench.columns:
+        bench_fuel_pct = parse_percent_col(df_bench[bench_fuel_col])
         df_bench["benchmark_fuel_cost"] = df_bench["benchmark_linehaul"] * bench_fuel_pct
     else:
         df_bench["benchmark_fuel_cost"] = 0.0
     
+    # Total benchmark cost
+    df_bench["benchmark_cost"] = (
+        df_bench["benchmark_linehaul"] + df_bench["benchmark_fuel_cost"]
+    )
+
     # --- select client columns, including lane detail if it exists ---
     client_cols = [
-        client_lane_col,
-        client_carrier_col,
-        "company_cost",           # total
-        "company_linehaul",
-        "company_fuel_cost",
-        "_lane",
-        "_mode",
-    ]
+        [
+            client_lane_col,
+            client_carrier_col,
+            "company_cost",           # total
+            "company_linehaul",
+            "company_fuel_cost",
+            "_lane",
+            "_mode",
+        ]
+    ].rename(
+        columns={
+        client_lane_col: "lane_key",
+        client_carrier_col: "carrier_name",
+        }
+    )
     if lane_detail_col in df_client.columns:
         client_cols.append(lane_detail_col)
 
@@ -1168,13 +1182,20 @@ if run:
     # ---------- Build benchmark frame used for aggregation ----------
     # This assumes df_bench already has:
     #   _lane, _mode, benchmark_linehaul, benchmark_fuel_cost, benchmark_cost
-    bench_keep = df_bench[[
-        "_lane",
-        "_mode",
-        "benchmark_linehaul",
-        "benchmark_fuel_cost",
-        "benchmark_cost",
-    ]].rename(columns={"_mode": "mode"})
+    # Keep only the columns we need on the benchmark side
+    bench_keep = df_bench[
+        [
+            bench_lane_col,           # lane key (same logical field as company lane)
+            "mode",
+            "benchmark_linehaul",
+            "benchmark_fuel_cost",
+            "benchmark_cost",
+        ]
+    ].rename(
+        columns={
+            bench_lane_col: "lane_key",   # standard key name used on both sides
+        }
+    )
 
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
