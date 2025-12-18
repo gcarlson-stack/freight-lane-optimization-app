@@ -1064,11 +1064,19 @@ if run:
             lane_src = client_keep[lane_detail_col]
         else:
             lane_src = client_keep["_lane"]
-        
-        client_keep[["origin_city", "origin_state", "dest_city", "dest_state"]] = (
-            lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
+
+        # Apply split_lane_detail and explicitly name the 4 outputs
+        od = lane_src.apply(
+            lambda x: pd.Series(
+                split_lane_detail(x),
+                index=["origin_city", "origin_state", "dest_city", "dest_state"],
+            )
         )
-    
+
+        # Assign each column separately to avoid shape/key issues
+        for col in ["origin_city", "origin_state", "dest_city", "dest_state"]:
+            client_keep[col] = od[col]
+
     # --- build benchmark linehaul + fuel + total ---
 
     # bench_cost_col (from the sidebar) should point to the **linehaul** rate column
