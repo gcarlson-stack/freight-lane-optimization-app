@@ -1408,6 +1408,13 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🚫 Excluded (Detail)"
 ])
 
+linehaul_savings = float(
+        out.loc[neg_mask_out, "delta_linehaul"].clip(lower=0).sum(skipna=True)
+    )
+fuel_savings = float(
+    out.loc[neg_mask_out, "delta_fuel"].clip(lower=0).sum(skipna=True)
+)
+overall_total = linehaul_savings + fuel_savings
 with tab1:
     st.markdown("### Savings scenarios")
     st.markdown(
