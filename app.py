@@ -774,7 +774,7 @@ with c1:
         "Company carrier column", 
         options=client_mode_columns,
         index=0,
-        help="Choose the column in the company data file that has the carrier names."))
+        help="Choose the column in the company data file that has the carrier names.")
     lane_detail_col = st.text_input(
         "Company lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
         value="Lane_Detail"
