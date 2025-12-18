@@ -1021,7 +1021,7 @@ if run:
     )
     
     if bench_has_fuel:
-        bench_fuel_pct = _parse_pct(df_bench[bench_fuel_col])        # 30% → 0.30
+        bench_fuel_pct = _parse_pct_col(df_bench[bench_fuel_col])        # 30% → 0.30
         df_bench["benchmark_fuel_cost"] = df_bench["benchmark_linehaul"] * bench_fuel_pct
     else:
         df_bench["benchmark_fuel_cost"] = 0.0
