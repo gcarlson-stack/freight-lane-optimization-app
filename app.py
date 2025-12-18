@@ -1047,15 +1047,19 @@ if run:
     )
 
     # --- select client columns, including lane detail if it exists ---
-    # Build the list of columns we want to keep from the company file
-
+    # We already created a normalized lane key in df_client["_lane"], so use that
+    # and carry origin/dest columns forward for the final output.
     client_cols_to_keep = [
         "_lane",               # normalized lane key
-        client_carrier_col,
+        client_carrier_col,    # original carrier column
         "company_linehaul",
         "company_fuel_cost",
         "company_cost",
         "_mode",
+        "origin_city",
+        "origin_state",
+        "dest_city",
+        "dest_state",
     ]
 
     if lane_detail_col in df_client.columns:
