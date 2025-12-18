@@ -1071,25 +1071,44 @@ if run:
     
     # ============ Apply exclusions ============
     # Locations
-    exclude_locations = FIXED_EXCLUDE_LOCATIONS.copy()
     if apply_fixed_exclusions:
         exclude_locations = FIXED_EXCLUDE_LOCATIONS.copy()
     else:
         exclude_locations = []
-    
+
+    # User-specified extra locations to exclude
     if extra_locations:
-        extra_locs_list = [x.strip().upper() for x in extra_locations.split(",") if x.strip()]
+        extra_locs_list = [
+            x.strip().upper()
+            for x in extra_locations.split(",")
+            if x.strip()
+        ]
         exclude_locations.extend(extra_locs_list)
 
-    client_keep["lane_key_upper"] = client_keep["_lane"].astype(str).str.upper()
+    # Build an uppercased lane string for matching.
+    # Use an explicit Series to avoid DataFrame/.str issues.
+    lane_series = pd.Series(client_keep["_lane"].values, index=client_keep.index)
+    lane_series = lane_series.astype(str)
+    client_keep["lane_key_upper"] = lane_series.str.upper()
 
-    def match_locs(text):
+    def match_locs(text: str) -> list:
         return [loc for loc in exclude_locations if loc in text]
 
-    client_keep["excluded_matches"] = client_keep["lane_key_upper"].apply(match_locs)
-    mask_loc_excl = client_keep["excluded_matches"].str.len().fillna(0).gt(0)
-    excluded_detail_df = client_keep.loc[mask_loc_excl, ["_lane", "carrier_name", "excluded_matches"]].copy()
+    client_keep["excluded_matches"] = (
+        client_keep["lane_key_upper"].astype(str).apply(match_locs)
+    )
+
+    # Boolean mask of rows to exclude (any matches)
+    mask_loc_excl = client_keep["excluded_matches"].apply(
+        lambda v: len(v) if isinstance(v, list) else 0
+    ).gt(0)
+
+    # Build details + summary for the “Excluded Locations” tab
+    excluded_detail_df = client_keep.loc[
+        mask_loc_excl, ["_lane", "carrier_name", "excluded_matches"]
+    ].copy()
     excluded_exploded = excluded_detail_df.explode("excluded_matches")
+
     if len(excluded_exploded):
         excluded_summary_df = (
             excluded_exploded["excluded_matches"]
@@ -1098,9 +1117,14 @@ if run:
             .reset_index(name="Count")
         )
     else:
-        excluded_summary_df = pd.DataFrame(columns=["Excluded_Location","Count"])
+        excluded_summary_df = pd.DataFrame(
+            columns=["Excluded_Location", "Count"]
+        )
 
-    client_keep = client_keep.loc[~mask_loc_excl].drop(columns=["excluded_matches"], errors="ignore")
+    # Finally drop excluded rows from the main analysis frame
+    client_keep = client_keep.loc[~mask_loc_excl].drop(
+        columns=["excluded_matches"], errors="ignore"
+    )
 
     # Carriers
     if extra_carriers:
