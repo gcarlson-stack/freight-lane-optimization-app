@@ -1198,54 +1198,45 @@ if run:
     )
 
     # ============ Build benchmark aggregate (one row per lane) ============
-    group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
-
+    group_cols = ["lane_key"] + (["mode"] if use_mode_matching else [])
     value_cols = ["benchmark_linehaul", "benchmark_fuel_cost", "benchmark_cost"]
-
-    if bench_agg == "median":
-        bench_agg_df = (
-            bench_keep
-            .groupby(group_cols, as_index=False, dropna=False)[value_cols]
-            .median()
-        )
-    else:
-        bench_agg_df = (
-            bench_keep
-            .groupby(group_cols, as_index=False, dropna=False)[value_cols]
-            .mean()
-        )
-
+    
+    agg_func = "median" if bench_agg == "median" else "mean"
+    
+    bench_agg_df = (
+        bench_keep
+        .groupby(group_cols, as_index=False, dropna=False)[value_cols]
+        .agg(agg_func)
+    )
     if use_mode_matching:
         merged = client_keep.merge(
             bench_agg_df,
             how="left",
-            left_on=["_lane", "mode"],
-            right_on=["_lane", "mode"]
+            on=["lane_key", "mode"],
         )
     else:
-        merged = client_keep.merge(bench_agg_df, how="left", on="_lane")
+        merged = client_keep.merge(
+            bench_agg_df,
+            how="left",
+            on="lane_key",
+        )
 
-   # fill missing benchmark components with 0 so totals/deltas make sense
+    # If there is truly no benchmark match for a lane, keep 0 on the benchmark side
     merged["benchmark_linehaul"] = merged["benchmark_linehaul"].fillna(0.0)
     merged["benchmark_fuel_cost"] = merged["benchmark_fuel_cost"].fillna(0.0)
-
-    # total benchmark cost = linehaul + fuel
-    merged["benchmark_cost"] = merged["benchmark_linehaul"] + merged["benchmark_fuel_cost"]
-
-    # company_cost is already total (linehaul + fuel) from earlier
-    # dollar differences
+    merged["benchmark_cost"] = merged["benchmark_cost"].fillna(0.0)
+    
+    # Deltas
     merged["delta_linehaul"] = merged["company_linehaul"] - merged["benchmark_linehaul"]
     merged["delta_fuel"] = merged["company_fuel_cost"] - merged["benchmark_fuel_cost"]
-    merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]  # total
-
-    # % difference vs total benchmark
-    mask = merged["benchmark_cost"].notna() & (merged["benchmark_cost"] != 0)
+    merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]
+    
+    mask = merged["benchmark_cost"] != 0
     merged["delta_pct"] = None
     merged.loc[mask, "delta_pct"] = (
         merged.loc[mask, "delta"] / merged.loc[mask, "benchmark_cost"] * 100.0
     )
-
-    # NEGOTIATE flag based on total delta
+    
     merged["action"] = merged["delta"].apply(
         lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None"
     )
