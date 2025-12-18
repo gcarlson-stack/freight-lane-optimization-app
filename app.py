@@ -749,7 +749,7 @@ c1, c2, c3, c4 = st.columns(4)
 
 with c1:
     client_lane_col = st.text_input("Company lane column (key)", value="lane_key_compact")
-    company_cost_col = st.text_input("Copmany cost column", value="Total Base Charges")
+    company_cost_col = st.text_input("Company cost column", value="Total Base Charges")
     company_fuel_col = st.text_input("Company fuel surcharge $ column (optional)", value="Fuel surcharge")
     client_carrier_col = st.text_input("Company carrier column", value="Carrier Name")
     lane_detail_col = st.text_input(
@@ -1024,13 +1024,51 @@ if run:
             lane_src.apply(lambda x: pd.Series(split_lane_detail(x)))
         )
     
-    bench_keep = df_bench[["_lane", "_mode", "benchmark_linehaul", "benchmark_fuel_cost"]].rename(
-        columns={"_mode": "mode"}
+    # --- build benchmark linehaul + fuel + total ---
+
+    # bench_cost_col (from the sidebar) should point to the **linehaul** rate column
+    bench_linehaul_col = bench_cost_col
+
+    # HARD-CODED fuel column name for now – change if your column name is different,
+    # or expose it as another text_input like bench_linehaul_col
+    bench_fuel_pct_col = "Fuel surcharge"   # e.g. values like "30%" or 0.30
+
+    # Make sure both columns exist
+    missing_bench_extra = [
+        c for c in [bench_linehaul_col, bench_fuel_pct_col]
+        if c not in df_bench.columns
+    ]
+    if missing_bench_extra:
+        st.error(f"Benchmark file missing linehaul/fuel columns: {missing_bench_extra}")
+        st.write("Benchmark columns:", list(df_bench.columns))
+        st.stop()
+
+    # Linehaul (benchmark) as numeric
+    df_bench["benchmark_linehaul"] = pd.to_numeric(
+        df_bench[bench_linehaul_col], errors="coerce"
     )
-    
-    bench_keep["benchmark_cost"] = pd.to_numeric(
-        bench_keep["benchmark_cost"],
-        errors="coerce"
+
+    # Fuel % → fraction
+    fuel_raw = df_bench[bench_fuel_pct_col].astype(str).str.strip()
+    fuel_fraction = fuel_raw.str.rstrip("%")
+    df_bench["benchmark_fuel_pct"] = pd.to_numeric(
+        fuel_fraction, errors="coerce"
+    ) / 100.0
+
+    # Fuel $ and total benchmark cost
+    df_bench["benchmark_fuel_cost"] = (
+        df_bench["benchmark_linehaul"] * df_bench["benchmark_fuel_pct"]
+    )
+    df_bench["benchmark_cost"] = (
+        df_bench["benchmark_linehaul"] + df_bench["benchmark_fuel_cost"]
+    )
+
+    # Now keep a clean benchmark frame, including linehaul + fuel + total
+    bench_keep = df_bench[["_lane", "_mode",
+                           "benchmark_linehaul",
+                           "benchmark_fuel_cost",
+                           "benchmark_cost"]].rename(
+        columns={"_mode": "mode"}
     )
     
     # ============ Apply exclusions ============
@@ -1107,16 +1145,20 @@ if run:
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
 
-    agg_func = "median" if bench_agg == "median" else "mean"
+    value_cols = ["benchmark_linehaul", "benchmark_fuel_cost", "benchmark_cost"]
 
-    bench_agg_df = (
-        bench_keep
-        .groupby(group_cols, as_index=False, dropna=False)
-        .agg(
-            benchmark_linehaul=("benchmark_linehaul", agg_func),
-            benchmark_fuel_cost=("benchmark_fuel_cost", agg_func),
+    if bench_agg == "median":
+        bench_agg_df = (
+            bench_keep
+            .groupby(group_cols, as_index=False, dropna=False)[value_cols]
+            .median()
         )
-    )
+    else:
+        bench_agg_df = (
+            bench_keep
+            .groupby(group_cols, as_index=False, dropna=False)[value_cols]
+            .mean()
+        )
 
     if use_mode_matching:
         merged = client_keep.merge(
