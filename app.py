@@ -1034,30 +1034,27 @@ if run:
     )
 
     # --- select client columns, including lane detail if it exists ---
-    client_cols = df_client[
-        [
-            client_lane_col,
-            client_carrier_col,
-            "company_cost",           # total
-            "company_linehaul",
-            "company_fuel_cost",
-            "_lane",
-            "_mode",
-        ]
-    ].rename(
+    # Build the list of columns we want to keep from the company file
+    client_cols_to_keep = [
+        client_lane_col,
+        client_carrier_col,
+        "company_linehaul",
+        "company_fuel_cost",
+        "company_cost",
+        "_lane",
+        "_mode",
+    ]
+    
+    if lane_detail_col in df_client.columns:
+        client_cols_to_keep.append(lane_detail_col)
+    
+    client_keep = df_client[client_cols_to_keep].rename(
         columns={
-        client_lane_col: "lane_key",
-        client_carrier_col: "carrier_name",
+            client_lane_col: "lane_key",
+            client_carrier_col: "carrier_name",
+            "_mode": "mode",
         }
     )
-    if lane_detail_col in df_client.columns:
-        client_cols.append(lane_detail_col)
-
-    client_keep = df_client[client_cols].rename(columns={
-        client_lane_col: "lane_key",
-        client_carrier_col: "carrier_name",
-        "_mode": "mode"
-    })
 
     # --- add origin/dest columns if we DON'T already have them ---
     needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
@@ -1185,18 +1182,16 @@ if run:
     # Keep only the columns we need on the benchmark side
     df_bench["_lane"] = df_bench[bench_lane_col]
     df_bench["_mode"] = df_bench[bench_mode_col]
-    bench_keep = df_bench[
-        [
-            bench_lane_col,           # lane key (same logical field as company lane)
-            "mode",
-            "benchmark_linehaul",
-            "benchmark_fuel_cost",
-            "benchmark_cost",
-        ]
-    ].rename(
-        columns={
-            bench_lane_col: "lane_key",   # standard key name used on both sides
-        }
+    bench_cols_to_keep = [
+    "_lane",
+    "_mode",
+    "benchmark_linehaul",
+    "benchmark_fuel_cost",
+    "benchmark_cost",
+    ]
+    
+    bench_keep = df_bench[bench_cols_to_keep].rename(
+        columns={"_mode": "mode"}
     )
 
     # ============ Build benchmark aggregate (one row per lane) ============
