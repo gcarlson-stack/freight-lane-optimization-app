@@ -719,7 +719,6 @@ with colL:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-
 # Build list of company columns for dropdown (if file is uploaded)
 client_mode_columns = ["<None>"]
 df_client_preview = pd.DataFrame()
@@ -756,10 +755,26 @@ st.markdown("Please enter the names of the columns where each data can be found 
 c1, c2, c3, c4 = st.columns(4)
 
 with c1:
-    client_lane_col = st.text_input("Company lane column (key)", value="lane_key_compact")
-    company_cost_col = st.text_input("Company cost column", value="Total Base Charges")
-    company_fuel_col = st.text_input("Company fuel surcharge $ column (optional)", value="Fuel surcharge")
-    client_carrier_col = st.text_input("Company carrier column", value="Carrier Name")
+    client_lane_col = st.selectbox(
+        "Company lane column (key)", 
+        options=client_mode_columns,
+        index=0,
+        help="Choose the column in the company data file that has the lane names.")
+    company_cost_col = st.selectbox(
+        "Company cost column", 
+        options=client_mode_columns,
+        index=0,
+        help="Choose the column in the company data file that has the base charges (e.g., linehaul rates).")
+    company_fuel_col = st.selectbox(
+        "Company fuel surcharge $ column (optional)", 
+        options=client_mode_columns,
+        index=0,
+        help="Choose the column in the company data file that has the fuel surcharges.")
+    client_carrier_col = st.selectbox(
+        "Company carrier column", 
+        options=client_mode_columns,
+        index=0,
+        help="Choose the column in the company data file that has the carrier names."))
     lane_detail_col = st.text_input(
         "Company lane detail column (e.g., 'Lane_Detail' or 'lane_key')",
         value="Lane_Detail"
@@ -789,9 +804,21 @@ with c2:
     dest_state_col  = st.selectbox("Dest state column",  options=city_state_cols, index=0)
 
 with c3:
-    bench_lane_col = st.text_input("Benchmark lane column", value="lane_key_compact")
-    bench_cost_col = st.text_input("Benchmark cost column", value="Cost")
-    bench_fuel_col = st.text_input("Benchmark fuel surcharge % column (optional)", value="Fuel surcharge")
+    bench_lane_col = st.selectbox(
+        "Benchmark lane column (key)", 
+        options=bench_mode_columns,
+        index=0,
+        help="Choose the column in the benchmark data file that has the lane names.")
+    bench_cost_col = st.selectbox(
+        "Benchmark cost column", 
+        options=bench_mode_columns,
+        index=0,
+        help="Choose the column in the benchmark data file that has the base charges (e.g., linehaul rates).")
+    bench_fuel_col = st.selectbox(
+        "Benchmark fuel surcharge % column (optional)", 
+        options=bench_mode_columns,
+        index=0,
+        help="Choose the column in the benchmark data file that has the fuel surcharges.")
     bench_agg = st.selectbox("Benchmark duplicate lanes aggregation", options=["mean","median"], index=0)
 
 with c4:
