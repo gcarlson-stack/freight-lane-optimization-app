@@ -1412,7 +1412,7 @@ with tab1:
     st.markdown("### Savings scenarios")
     st.markdown(
         f"- **Scenario 1 – Linehaul only:** ${linehaul_savings:,.2f}  \n"
-        f"- **Scenario 2 – Linehaul + fuel:** ${overall_total:,.2f} "
+        f"- **Scenario 2 – Linehaul + fuel:** {overall_total:,.2f} \\(includes {fuel_savings:,.2f} from fuel surcharges\\)"
         f"(includes ${fuel_savings:,.2f} from fuel surcharges)"
     )
     st.markdown(
