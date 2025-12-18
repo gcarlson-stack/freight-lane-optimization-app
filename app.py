@@ -1034,7 +1034,7 @@ if run:
     )
 
     # --- select client columns, including lane detail if it exists ---
-    client_cols = [
+    client_cols = df_client[
         [
             client_lane_col,
             client_carrier_col,
@@ -1183,6 +1183,8 @@ if run:
     # This assumes df_bench already has:
     #   _lane, _mode, benchmark_linehaul, benchmark_fuel_cost, benchmark_cost
     # Keep only the columns we need on the benchmark side
+    df_bench["_lane"] = df_bench[bench_lane_col]
+    df_bench["_mode"] = df_bench[bench_mode_col]
     bench_keep = df_bench[
         [
             bench_lane_col,           # lane key (same logical field as company lane)
