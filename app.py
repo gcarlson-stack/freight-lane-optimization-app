@@ -1195,7 +1195,7 @@ if run:
     )
 
     # ============ Build benchmark aggregate (one row per lane) ============
-    group_cols = ["lane_key"] + (["mode"] if use_mode_matching else [])
+    group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
     value_cols = ["benchmark_linehaul", "benchmark_fuel_cost", "benchmark_cost"]
     
     agg_func = "median" if bench_agg == "median" else "mean"
