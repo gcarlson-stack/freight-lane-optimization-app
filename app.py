@@ -547,16 +547,24 @@ def build_compact_key(df, city_col, state_col, new_col_name):
     df[new_col_name] = city + state
     return df
 
-def _parse_pct(series: pd.Series) -> pd.Series:
+def parse_percent_col(series: pd.Series) -> pd.Series:
     """
-    Convert a column like '30%' or 30 into a decimal fraction 0.30.
-    If values are already decimals (<=1), leave them as-is.
+    Convert a column that may be:
+      - '30%'   -> 0.30
+      - '30'    -> 0.30
+      - 30      -> 0.30
+      - 0.30    -> 0.30  (already decimal)
+    into a decimal fraction (0.30).
     """
     s = series.astype(str).str.strip().str.replace("%", "", regex=False)
     vals = pd.to_numeric(s, errors="coerce")
 
-    if vals.max(skipna=True) is not None and vals.max(skipna=True) <= 1.0:
-        return vals  # already decimals
+    # If the largest non-null value is <= 1, it is already a fraction (e.g. 0.30)
+    max_val = vals.max(skipna=True)
+    if max_val is not None and max_val <= 1.0:
+        return vals
+
+    # Otherwise we assume it's in whole percent (30 -> 0.30)
     return vals / 100.0
 
 def read_any(upload, sheet=None):
@@ -975,7 +983,6 @@ if run:
     # total company cost = linehaul + fuel
     df_client["company_cost"] = df_client["company_linehaul"] + df_client["company_fuel_cost"]
     
-    
     # ===== BENCHMARK: linehaul + fuel (% of linehaul) =====
     df_bench["benchmark_linehaul"] = pd.to_numeric(
         df_bench[bench_cost_col], errors="coerce"
@@ -1048,27 +1055,17 @@ if run:
         df_bench[bench_linehaul_col], errors="coerce"
     )
 
-    # Fuel % → fraction
-    fuel_raw = df_bench[bench_fuel_pct_col].astype(str).str.strip()
-    fuel_fraction = fuel_raw.str.rstrip("%")
-    df_bench["benchmark_fuel_pct"] = pd.to_numeric(
-        fuel_fraction, errors="coerce"
-    ) / 100.0
-
-    # Fuel $ and total benchmark cost
-    df_bench["benchmark_fuel_cost"] = (
-        df_bench["benchmark_linehaul"] * df_bench["benchmark_fuel_pct"]
+   # Linehaul numeric
+    df_bench["benchmark_linehaul"] = pd.to_numeric(
+        df_bench[bench_linehaul_col], errors="coerce"
     )
+    
+    # Fuel percentage -> fraction using the robust parser
+    bench_fuel_pct = parse_percent_col(df_bench[bench_fuel_pct_col])
+    
+    df_bench["benchmark_fuel_cost"] = df_bench["benchmark_linehaul"] * bench_fuel_pct
     df_bench["benchmark_cost"] = (
         df_bench["benchmark_linehaul"] + df_bench["benchmark_fuel_cost"]
-    )
-
-    # Now keep a clean benchmark frame, including linehaul + fuel + total
-    bench_keep = df_bench[["_lane", "_mode",
-                           "benchmark_linehaul",
-                           "benchmark_fuel_cost",
-                           "benchmark_cost"]].rename(
-        columns={"_mode": "mode"}
     )
     
     # ============ Apply exclusions ============
