@@ -1182,17 +1182,6 @@ if run:
     bench_keep = df_bench[bench_cols_to_keep].rename(
         columns={"_mode": "mode"}
     )
-    st.write("Sample client lanes:", client_keep[["_lane", "mode"]].head(10))
-    st.write("Sample benchmark lanes:", bench_keep[["_lane", "mode"]].head(10))
-    
-    st.write(
-        "Number of unique client lanes:",
-        client_keep["_lane"].nunique()
-    )
-    st.write(
-        "Number of unique benchmark lanes:",
-        bench_keep["_lane"].nunique()
-    )
 
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
