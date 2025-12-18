@@ -1048,22 +1048,21 @@ if run:
 
     # --- select client columns, including lane detail if it exists ---
     # Build the list of columns we want to keep from the company file
+
     client_cols_to_keep = [
-        client_lane_col,
+        "_lane",               # normalized lane key
         client_carrier_col,
         "company_linehaul",
         "company_fuel_cost",
         "company_cost",
-        "_lane",
         "_mode",
     ]
-    
+
     if lane_detail_col in df_client.columns:
         client_cols_to_keep.append(lane_detail_col)
-    
+
     client_keep = df_client[client_cols_to_keep].rename(
         columns={
-            client_lane_col: "_lane",
             client_carrier_col: "carrier_name",
             "_mode": "mode",
         }
@@ -1087,9 +1086,9 @@ if run:
 
     # Build an uppercased lane string for matching.
     # Use an explicit Series to avoid DataFrame/.str issues.
-    lane_series = pd.Series(client_keep["_lane"].values, index=client_keep.index)
-    lane_series = lane_series.astype(str)
-    client_keep["lane_key_upper"] = lane_series.str.upper()
+    client_keep["lane_key_upper"] = (
+        client_keep["_lane"].astype(str).str.upper()
+    )
 
     def match_locs(text: str) -> list:
         return [loc for loc in exclude_locations if loc in text]
