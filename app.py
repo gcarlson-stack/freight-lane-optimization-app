@@ -1165,6 +1165,16 @@ if run:
                 "or no valid mode column is available. No mode-based exclusions applied."
             )
     # If exclude_modes is empty, quietly do nothing
+    # ---------- Build benchmark frame used for aggregation ----------
+    # This assumes df_bench already has:
+    #   _lane, _mode, benchmark_linehaul, benchmark_fuel_cost, benchmark_cost
+    bench_keep = df_bench[[
+        "_lane",
+        "_mode",
+        "benchmark_linehaul",
+        "benchmark_fuel_cost",
+        "benchmark_cost",
+    ]].rename(columns={"_mode": "mode"})
 
     # ============ Build benchmark aggregate (one row per lane) ============
     group_cols = ["_lane"] + (["mode"] if use_mode_matching else [])
