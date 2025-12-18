@@ -789,7 +789,7 @@ with c1:
         "Company lane detail column (e.g., 'Lane_Detail' or '_lane')",
         value="Lane_Detail"
     )
-    mode_col = st.selectbox(
+    mode_col_client = st.selectbox(
         "Company mode column (TL / LTL)",
         options=client_mode_columns,
         index=0,
@@ -855,7 +855,7 @@ st.subheader("Mode Filter (exclude LTL, etc.)")
 st.markdown("Select the column from the dropdown that contains the transportation mode in the company data file. Then fill in the mode that is to be excluded.") 
 m1, m2 = st.columns(2)
 with m1:
-    mode_col = st.selectbox(
+    mode_filter_col = st.selectbox(
         "Company mode column (LTL/TL)",
         options=client_mode_columns,
         index=0,  # "<None>" by default
@@ -908,10 +908,14 @@ if run:
         st.stop()
     
     # --- Determine whether both datasets have mode columns mapped ---
-    client_has_mode = (mode_col not in ("<None>", None, "") 
-                       and mode_col in df_client.columns)
-    bench_has_mode = (bench_mode_col not in ("<None>", None, "") 
-                      and bench_mode_col in df_bench.columns)
+    client_has_mode = (
+        mode_col_client not in ("<None>", None, "") 
+        and mode_col_client in df_client.columns
+    )
+    bench_has_mode = (
+        bench_mode_col not in ("<None>", None, "") 
+        and bench_mode_col in df_bench.columns
+    )
     
     use_mode_matching = client_has_mode and bench_has_mode
     
@@ -996,7 +1000,7 @@ if run:
         )
 
     if use_mode_matching:
-        df_client["_mode"] = norm_mode(df_client[mode_col])
+        df_client["_mode"] = norm_mode(df_client[mode_col_client])
         df_bench["_mode"]  = norm_mode(df_bench[bench_mode_col])
     else:
         # default placeholder for mode so merge still works safely
