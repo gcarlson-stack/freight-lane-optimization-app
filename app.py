@@ -965,6 +965,9 @@ if run:
 
     df_client = df_client.copy()
     df_bench = df_bench.copy()
+    # Ensure origin/dest columns exist on both datasets
+    df_client = ensure_origin_dest(df_client)
+    df_bench = ensure_origin_dest(df_bench)
 
     df_client["_lane"] = df_client[client_lane_col].map(norm_lane)
     df_bench["_lane"]  = df_bench[bench_lane_col].map(norm_lane)
@@ -1055,33 +1058,6 @@ if run:
             "_mode": "mode",
         }
     )
-
-    # --- add origin/dest columns if we DON'T already have them ---
-        # --- add origin/dest columns if we DON'T already have them ---
-    needed_od = {"origin_city", "origin_state", "dest_city", "dest_state"}
-    if not needed_od.issubset(client_keep.columns):
-        # fall back to parsing from lane_detail or _lane
-        if lane_detail_col in client_keep.columns:
-            lane_src = client_keep[lane_detail_col]
-        else:
-            lane_src = client_keep["_lane"]
-
-        # split_lane_detail(x) should return a 4-tuple/list:
-        # (origin_city, origin_state, dest_city, dest_state)
-        split_vals = lane_src.apply(split_lane_detail)
-
-        # Explicitly build a DataFrame with the correct column names
-        od_df = pd.DataFrame(
-            split_vals.tolist(),
-            index=lane_src.index,
-            columns=["origin_city", "origin_state", "dest_city", "dest_state"],
-        )
-
-        # Assign each column to client_keep
-        client_keep["origin_city"] = od_df["origin_city"]
-        client_keep["origin_state"] = od_df["origin_state"]
-        client_keep["dest_city"] = od_df["dest_city"]
-        client_keep["dest_state"] = od_df["dest_state"]
 
     # Linehaul (benchmark) as numeric
     df_bench["benchmark_linehaul"] = pd.to_numeric(
