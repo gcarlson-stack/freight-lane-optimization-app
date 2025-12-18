@@ -1219,24 +1219,43 @@ if run:
         )
 
     # If there is truly no benchmark match for a lane, keep 0 on the benchmark side
+        # Flag rows that actually have a benchmark match BEFORE filling NaNs
+    merged["has_benchmark"] = (
+        merged["benchmark_cost"].notna() & (merged["benchmark_cost"] > 0)
+    )
+
+    # Fill missing benchmark components with 0 so calculations don't blow up
     merged["benchmark_linehaul"] = merged["benchmark_linehaul"].fillna(0.0)
     merged["benchmark_fuel_cost"] = merged["benchmark_fuel_cost"].fillna(0.0)
     merged["benchmark_cost"] = merged["benchmark_cost"].fillna(0.0)
-    
+
     # Deltas
-    merged["delta_linehaul"] = merged["company_linehaul"] - merged["benchmark_linehaul"]
-    merged["delta_fuel"] = merged["company_fuel_cost"] - merged["benchmark_fuel_cost"]
+    merged["delta_linehaul"] = (
+        merged["company_linehaul"] - merged["benchmark_linehaul"]
+    )
+    merged["delta_fuel"] = (
+        merged["company_fuel_cost"] - merged["benchmark_fuel_cost"]
+    )
     merged["delta"] = merged["company_cost"] - merged["benchmark_cost"]
-    
-    mask = merged["benchmark_cost"] != 0
+
+    # % difference only where benchmark exists and is non-zero
     merged["delta_pct"] = None
-    merged.loc[mask, "delta_pct"] = (
-        merged.loc[mask, "delta"] / merged.loc[mask, "benchmark_cost"] * 100.0
+    pct_mask = merged["has_benchmark"] & (merged["benchmark_cost"] != 0)
+    merged.loc[pct_mask, "delta_pct"] = (
+        merged.loc[pct_mask, "delta"] / merged.loc[pct_mask, "benchmark_cost"] * 100.0
     )
-    
-    merged["action"] = merged["delta"].apply(
-        lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None"
-    )
+
+    # Action should only be NEGOTIATE if:
+    #   - there is a benchmark, and
+    #   - company total > benchmark total
+    def decide_action(row):
+        if not row["has_benchmark"]:
+            return "None"
+        if pd.isna(row["delta"]) or row["delta"] <= 0:
+            return "None"
+        return "NEGOTIATE"
+
+    merged["action"] = merged.apply(decide_action, axis=1)
 
     out = merged[
         [
