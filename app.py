@@ -1306,12 +1306,12 @@ if run:
     
     # Scenario 1: only linehaul is negotiated; fuel surcharges left as-is
     linehaul_savings = float(
-        out.loc[neg_mask_out, "delta_linehaul"].clip(lower=0).sum(skipna=True)
+        out.loc[neg_mask_out, "delta_linehaul"].sum(skipna=True)
     )
     
     # Scenario 2 savings definition: total (company - benchmark), floored at 0 per lane
     overall_total = float(
-        out.loc[neg_mask_out, "delta"].clip(lower=0).sum(skipna=True)
+        out.loc[neg_mask_out, "delta"].sum(skipna=True)
     )
 
     summary_df = pd.DataFrame([
@@ -1400,7 +1400,7 @@ neg_mask_out = out["action"] == "NEGOTIATE"
 overall_count = int(neg_mask_out.sum())
 
 # Scenario 2 savings definition: total (company - benchmark), floored at 0 per row
-overall_total = float(out.loc[neg_mask_out, "delta"].clip(lower=0).sum(skipna=True))
+overall_total = float(out.loc[neg_mask_out, "delta"].sum(skipna=True))
 
 letter_neg_mask = letter_df["action"] == "NEGOTIATE"
 letter_lane_count = int(letter_neg_mask.sum())
@@ -1436,10 +1436,10 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 ])
 
 linehaul_savings = float(
-        out.loc[neg_mask_out, "delta_linehaul"].clip(lower=0).sum(skipna=True)
+        out.loc[neg_mask_out, "delta_linehaul"].sum(skipna=True)
     )
 fuel_savings = float(
-    out.loc[neg_mask_out, "delta_fuel"].clip(lower=0).sum(skipna=True)
+    out.loc[neg_mask_out, "delta_fuel"].sum(skipna=True)
 )
 
 with tab1:
