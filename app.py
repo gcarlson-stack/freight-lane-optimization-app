@@ -1309,7 +1309,10 @@ if run:
         out.loc[neg_mask_out, "delta_linehaul"].clip(lower=0).sum(skipna=True)
     )
     
-    # Scenario 2: both linehaul and fuel negotiated
+    # Scenario 2 savings definition: total (company - benchmark), floored at 0 per lane
+    overall_total = float(
+        out.loc[neg_mask_out, "delta"].clip(lower=0).sum(skipna=True)
+    )
 
     summary_df = pd.DataFrame([
         {
@@ -1438,7 +1441,7 @@ linehaul_savings = float(
 fuel_savings = float(
     out.loc[neg_mask_out, "delta_fuel"].clip(lower=0).sum(skipna=True)
 )
-overall_total = linehaul_savings + fuel_savings
+
 with tab1:
     st.markdown("### Savings scenarios")
     st.markdown(
