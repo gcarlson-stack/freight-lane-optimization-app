@@ -1310,10 +1310,6 @@ if run:
     )
     
     # Scenario 2: both linehaul and fuel negotiated
-    fuel_savings = float(
-        out.loc[neg_mask_out, "delta_fuel"].clip(lower=0).sum(skipna=True)
-    )
-    overall_total = linehaul_savings + fuel_savings  # total savings if both are negotiated
 
     summary_df = pd.DataFrame([
         {
