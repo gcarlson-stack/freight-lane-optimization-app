@@ -1399,15 +1399,17 @@ no_action_df = out[out["lane_treatment"] == "None"].copy()
 
 neg_mask_out = out["action"] == "NEGOTIATE"
 overall_count = int(neg_mask_out.sum())
-overall_total = float(out.loc[neg_mask_out, "delta"].sum(skipna=True))
+
+# Scenario 2 savings definition: total (company - benchmark), floored at 0 per row
+overall_total = float(out.loc[neg_mask_out, "delta"].clip(lower=0).sum(skipna=True))
 
 letter_neg_mask = letter_df["action"] == "NEGOTIATE"
 letter_lane_count = int(letter_neg_mask.sum())
-letter_savings = float(letter_df.loc[letter_neg_mask, "delta"].sum(skipna=True))
+letter_savings = float(letter_df.loc[letter_neg_mask, "delta"].clip(lower=0).sum(skipna=True))
 
 rfp_neg_mask = rfp_df["action"] == "NEGOTIATE"
 rfp_lane_count = int(rfp_neg_mask.sum())
-rfp_savings = float(rfp_df.loc[rfp_neg_mask, "delta"].sum(skipna=True))
+rfp_savings = float(rfp_df.loc[rfp_neg_mask, "delta"].clip(lower=0).sum(skipna=True))
 
 combined_savings = letter_savings + rfp_savings
 savings_diff = overall_total - combined_savings
