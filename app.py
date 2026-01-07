@@ -12,6 +12,20 @@ from docx.shared import Pt
 # =========================================================
 # Utilities (kept from your current code)
 # =========================================================
+def next_step_hint(next_tab_label: str, disabled: bool = False):
+    """
+    In Streamlit tabs you cannot programmatically select the next tab.
+    This provides a clear CTA + scroll-to-top so the user sees the tab bar.
+    """
+    cols = st.columns([3, 2])
+    with cols[1]:
+        if st.button("Next step →", disabled=disabled, use_container_width=True):
+            # Scroll to top where tabs are visible
+            st.markdown(
+                "<script>window.scrollTo({top: 0, behavior: 'smooth'});</script>",
+                unsafe_allow_html=True
+            )
+            st.info(f"Next: click **{next_tab_label}** at the top.")
 
 def _safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in (" ", "_", "-") else "_" for c in name).strip().replace(" ", "_")
@@ -376,6 +390,7 @@ with st.sidebar:
 # =========================================================
 # Tabs (1 + 10)
 # =========================================================
+st.markdown('<div id="top"></div>', unsafe_allow_html=True)
 
 tab_upload, tab_config, tab_results, tab_exports = st.tabs(
     ["1) Upload", "2) Configure", "3) Results", "4) Exports"]
@@ -454,6 +469,9 @@ with tab_upload:
             st.success(f"Benchmark file loaded: {df_bench_preview.shape[0]:,} rows, {df_bench_preview.shape[1]:,} cols")
         except Exception as e:
             st.error(f"Could not read Benchmark file: {e}")
+    client_file = st.session_state.get("client")
+    bench_file = st.session_state.get("bench")
+    next_step_hint("2) Configure", disabled=(client_file is None or bench_file is None))
 
 # =========================================================
 # 2) Configure (2 + 3 + 7)
@@ -578,6 +596,11 @@ with tab_config:
     if str(letter_override_raw).strip():
         pieces = [c.strip() for c in str(letter_override_raw).replace("\n", ",").split(",") if c.strip()]
         override_letter_lanes = {p.upper() for p in pieces}
+    
+# Store overrides so Results/Exports can reliably access them
+    st.session_state["override_letter_lanes"] = override_letter_lanes
+    
+    next_step_hint("3) Results", disabled=(not st.session_state.get("results_ready", False)))
 
 # =========================================================
 # Run comparison (2 + 6)
@@ -918,6 +941,8 @@ with tab_results:
 
         with tab6:
             st.dataframe(excluded_detail_df, use_container_width=True)
+    
+    next_step_hint("4) Exports", disabled=(not st.session_state.get("results_ready", False)))
 
 # =========================================================
 # 4) Exports (10) – fully gated; nothing runs without results
@@ -1461,3 +1486,4 @@ with tab_exports:
                     file_name="negotiation_letters.zip",
                     mime="application/zip"
                 )
+    st.caption("You can go back to Results or Configure at any time using the tabs above.")
