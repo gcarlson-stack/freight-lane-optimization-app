@@ -927,28 +927,28 @@ with tab_config:
 # If user clicked "Run comparison", recompute and store results
 if submitted:
     with st.status("Running comparison…", expanded=True) as status:
-    st.write("Validating inputs")
-    if client_file is None or bench_file is None:
-        status.update(label="Missing inputs", state="error")
-        st.error("Please upload both Company and Benchmark files.")
-        st.stop()
-
-    st.write("Reading files")
-    # (keep your existing read_any_cached calls)
-
-    st.write("Normalizing lanes and applying mappings")
-    # (keep your existing lane build / validation)
-
-    st.write("Aggregating benchmark lanes")
-    # (keep your existing benchmark aggregation)
-
-    st.write("Computing deltas and applying exclusions")
-    # (keep your existing merge / delta / exclusion logic)
-
-    st.write("Preparing outputs")
-    # (keep your existing out / summary dfs / exports)
-
-    status.update(label="Comparison complete", state="complete")
+        st.write("Validating inputs")
+        if client_file is None or bench_file is None:
+            status.update(label="Missing inputs", state="error")
+            st.error("Please upload both Company and Benchmark files.")
+            st.stop()
+    
+        st.write("Reading files")
+        # (keep your existing read_any_cached calls)
+    
+        st.write("Normalizing lanes and applying mappings")
+        # (keep your existing lane build / validation)
+    
+        st.write("Aggregating benchmark lanes")
+        # (keep your existing benchmark aggregation)
+    
+        st.write("Computing deltas and applying exclusions")
+        # (keep your existing merge / delta / exclusion logic)
+    
+        st.write("Preparing outputs")
+        # (keep your existing out / summary dfs / exports)
+    
+        status.update(label="Comparison complete", state="complete")
 
     # ============ Load data ============
     if client_file is None or bench_file is None:
