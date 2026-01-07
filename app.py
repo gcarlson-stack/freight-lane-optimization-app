@@ -1722,7 +1722,7 @@ with tab_exports:
       - Highlight the lanes that carrier currently services above benchmark
       - Show the **top 10% lanes with the largest variance**, plus summaries. Please note that the top 10% threshold cannot be adjusted. If there are certainly lanes to be excluded from the summary, please ensure they are entered in the 'RFP overrides' section above.
     """)
-    st.subheader("📦 Build RFP Template (Excel)")
+st.subheader("📦 Build RFP Template (Excel)")
     
     # Overview text (Tab 1)
     overview_text = st.text_area(
