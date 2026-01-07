@@ -12,15 +12,14 @@ from docx.shared import Pt
 # =========================================================
 # Utilities (kept from your current code)
 # =========================================================
-def next_step_hint(next_tab_label: str, disabled: bool = False):
+def next_step_hint(next_tab_label: str, *, disabled: bool = False, key: str):
     """
-    In Streamlit tabs you cannot programmatically select the next tab.
-    This provides a clear CTA + scroll-to-top so the user sees the tab bar.
+    Streamlit tabs cannot be programmatically selected. This adds a CTA and scroll-to-top.
+    key MUST be unique per call site to avoid StreamlitDuplicateElementId.
     """
     cols = st.columns([3, 2])
     with cols[1]:
-        if st.button("Next step →", disabled=disabled, use_container_width=True):
-            # Scroll to top where tabs are visible
+        if st.button("Next step →", disabled=disabled, use_container_width=True, key=key):
             st.markdown(
                 "<script>window.scrollTo({top: 0, behavior: 'smooth'});</script>",
                 unsafe_allow_html=True
@@ -471,7 +470,7 @@ with tab_upload:
             st.error(f"Could not read Benchmark file: {e}")
     client_file = st.session_state.get("client")
     bench_file = st.session_state.get("bench")
-    next_step_hint("2) Configure", disabled=(client_file is None or bench_file is None))
+    next_step_hint("2) Configure", disabled=(client_file is None or bench_file is None), key="next_upload")
 
 # =========================================================
 # 2) Configure (2 + 3 + 7)
@@ -597,10 +596,10 @@ with tab_config:
         pieces = [c.strip() for c in str(letter_override_raw).replace("\n", ",").split(",") if c.strip()]
         override_letter_lanes = {p.upper() for p in pieces}
     
-# Store overrides so Results/Exports can reliably access them
+    # Store overrides so Results/Exports can reliably access them
     st.session_state["override_letter_lanes"] = override_letter_lanes
     
-    next_step_hint("3) Results", disabled=(not st.session_state.get("results_ready", False)))
+    next_step_hint("3) Results", disabled=(not st.session_state.get("results_ready", False)), key="next_config")
 
 # =========================================================
 # Run comparison (2 + 6)
@@ -942,7 +941,7 @@ with tab_results:
         with tab6:
             st.dataframe(excluded_detail_df, use_container_width=True)
     
-    next_step_hint("4) Exports", disabled=(not st.session_state.get("results_ready", False)))
+    next_step_hint("4) Exports", disabled=(not st.session_state.get("results_ready", False)), key="next_results")
 
 # =========================================================
 # 4) Exports (10) – fully gated; nothing runs without results
@@ -1486,4 +1485,4 @@ with tab_exports:
                     file_name="negotiation_letters.zip",
                     mime="application/zip"
                 )
-    st.caption("You can go back to Results or Configure at any time using the tabs above.")
+    st.button("← Back to Results (click tab above)", key="back_exports")
