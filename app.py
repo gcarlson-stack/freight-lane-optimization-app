@@ -810,7 +810,7 @@ with tab_config:
             company_cost_col = st.selectbox(
                 "Company cost column", 
                 options=client_mode_columns,
-                index=guess_col(client_mode_columns, ["cost", "charge", "linehaul", "rate", "amount"],
+                index=guess_col(client_mode_columns, ["cost", "charge", "linehaul", "rate", "amount"]),
                 help="Choose the column in the company data file that has the base charges (e.g., linehaul rates).")
             company_fuel_col = st.selectbox(
                 "Company fuel surcharge $ column (optional)", 
