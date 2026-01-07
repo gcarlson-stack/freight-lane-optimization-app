@@ -280,6 +280,23 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
 st.title("🚚 FLO.ai")
+# ===== Upfront blurb (shows on every tab) =====
+st.markdown(
+    """
+**What this tool does**
+- Compares your Company lane costs to a Benchmark file to identify negotiation opportunities.
+- Supports optional matching by mode (TL/LTL) and optional exclusions (locations, carriers, modes).
+- Produces outputs for review (summary + lane tables) and exports (Excel workbook, RFP template, letters).
+
+**Recommended workflow**
+1) Upload Company + Benchmark
+2) Configure mappings and exclusions
+3) Run comparison
+4) Review Results
+5) Export workbook / templates / letters
+"""
+)
+st.markdown("---")
 
 FIXED_EXCLUDE_LOCATIONS = [
     "GLADSTONEVA", "FITCHBURGMA", "MORGAN HILLCA", "MASSILLONOH", "MERCEDCA",
@@ -307,14 +324,32 @@ if "excluded_detail_df" not in st.session_state:
 # Sidebar (keep concise)
 # =========================================================
 
+# ===== Sidebar (shows on every tab) =====
 with st.sidebar:
-    st.header("🧭 How to use")
+    st.header("FLO.ai — Freight Lane Comparison")
+
+    st.markdown("### How to use")
     st.markdown(
-        "- Upload Company + Benchmark files\n"
-        "- Configure mappings + exclusions\n"
-        "- Run comparison\n"
-        "- Review Results\n"
-        "- Export workbook / templates / letters"
+        "- **Upload** Company + Benchmark files\n"
+        "- **Configure** mappings, mode handling, exclusions\n"
+        "- Click **Run comparison**\n"
+        "- Review **Results**\n"
+        "- Generate **Exports** (workbook / RFP template / letters)"
+    )
+
+    st.markdown("---")
+    st.markdown("### Tips")
+    st.markdown(
+        "- Start with required mappings only; expand Advanced options if needed.\n"
+        "- If match rate looks low, check lane key formatting and mode mapping.\n"
+        "- Keep exclusions tight; over-filtering can hide savings.\n"
+    )
+
+    st.markdown("---")
+    st.markdown("### Inputs expected")
+    st.markdown(
+        "**Company file:** lane key, carrier, cost (and optional fuel)\n\n"
+        "**Benchmark file:** lane key, benchmark cost (and optional fuel %)\n"
     )
 
 # =========================================================
@@ -496,7 +531,7 @@ with tab_config:
             )
 
         st.markdown("---")
-        st.subheader("Mode handling (7)")
+        st.subheader("Mode handling")
 
         match_by_mode = st.checkbox(
             "Match by mode when both mode columns are mapped",
