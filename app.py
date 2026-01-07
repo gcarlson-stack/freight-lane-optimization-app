@@ -281,7 +281,7 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
 st.title("🚚 FLO.ai")
 # ===== Upfront blurb (shows on every tab) =====
-st.markdown(
+st.markdown("""
 ### What this tool does
 
 This app compares your **company freight costs** to **benchmark rates**, then classifies each lane into:
