@@ -285,11 +285,11 @@ st.markdown(
 ### What this tool does
 
 This app compares your **company freight costs** to **benchmark rates**, then classifies each lane into:
-- **RFP lanes** – lanes that will be included in a broader bid event
-- **Negotiation lanes** – "non-vanilla" lanes or lanes excluded from RFP for specific reasons that 
+- **RFP lanes**: lanes that will be included in a broader bid event
+- **Negotiation lanes**: "non-vanilla" lanes or lanes excluded from RFP for specific reasons that 
     will be handled via targeted vendor letters. Letters can also be used for monthly rate review, 
     e.g., month-to-month negotiations with carriers to monitor variance to benchmark
-- **Excluded lanes** – filtered out due to location, mode, or carrier exclusions
+- **Excluded lanes**: filtered out due to location, mode, or carrier exclusions
 
 From this, you can:
 - Download a **full comparison workbook**
