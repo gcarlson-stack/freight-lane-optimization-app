@@ -333,8 +333,7 @@ if "excluded_detail_df" not in st.session_state:
 with st.sidebar:
     st.header("🧭 How to use this tool")
 
-    st.markdown("
-**Please note: when the app is running, the website will "gray out." Please do not refresh the page 
+    st.markdown("**Please note: when the app is running, the website will "gray out." Please do not refresh the page 
 or make changes to any of the inputs while the page is loading.**
 
 **Step 1: Upload data**
@@ -367,8 +366,7 @@ or make changes to any of the inputs while the page is loading.**
   - Send **custom letters** to carriers with lane-level detail and % over benchmark.
 - Negotiation letters can be used as a monthly check for lanes above benchmark. 
     Letters can be sent once a month to vendors notifying vendors that lanes are 
-    still not within compliance of benchmark values.
-    ")
+    still not within compliance of benchmark values.")
 
     st.caption("Tip: Run the comparison first, review the RFP and Negotiation tabs, then generate the templates and letters.")
 
