@@ -619,6 +619,22 @@ def infer_sheets(upload):
         except Exception:
             return []
     return []
+
+def guess_col(columns, candidates):
+    """
+    columns: list-like of column names
+    candidates: list of strings; matched by 'in' (case-insensitive)
+    returns index into columns list (or 0)
+    """
+    if not columns:
+        return 0
+    lowered = [str(c).lower() for c in columns]
+    for cand in candidates:
+        for i, col in enumerate(lowered):
+            if cand in col:
+                return i
+    return 0
+
 st.title("🚚 FLO.ai")
 
 st.markdown("""
@@ -685,213 +701,255 @@ or make changes to any of the inputs while the page is loading.**
     st.caption("Tip: Run the comparison first, review the RFP and Negotiation tabs, then generate the templates and letters.")
 
 # ---- Session state init ----
+# ---- Session state init ----
 if "results_ready" not in st.session_state:
     st.session_state["results_ready"] = False
+if "out" not in st.session_state:
+    st.session_state["out"] = None
+if "gpf_export" not in st.session_state:
+    st.session_state["gpf_export"] = None
+if "summary_df" not in st.session_state:
+    st.session_state["summary_df"] = None
+if "excluded_summary_df" not in st.session_state:
+    st.session_state["excluded_summary_df"] = None
+if "excluded_detail_df" not in st.session_state:
+    st.session_state["excluded_detail_df"] = None
 
+# ============ Guided flow (Tabs) ============
+tab_upload, tab_config, tab_results, tab_exports = st.tabs(
+    ["1) Upload", "2) Configure", "3) Results", "4) Exports"]
+)
+
+with tab_upload:
 # ============ Uploads ============
-colL, colR = st.columns(2)
-with colL:
-    st.subheader("Company file")
-    st.markdown("Upload a data export from your TMS system that contains lanes (origin and destination), carriers, base rate charged, transportation mode (e.g., TL). \n"
-                "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
-    client_file = st.file_uploader("Upload Company data (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
-    client_sheets = infer_sheets(client_file)
-    client_sheet = st.selectbox("Company sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
-    
-    st.caption("If you don’t have a formatted company file with carrier names and modes, origin, destination, and base rate charged, download the template below, fill it in, and re-upload it as the company data.")
-
-    # -------- Company template download --------
-    template_cols = [
-        "Origin City",
-        "Origin State",
-        "Dest City",
-        "Dest State",
-        "Total Base Charges",  # map this to company_cost_col
-        "Carrier Name",      # map this to client_carrier_col
-        "Carrier Mode",      # map this to mode_col
-    ]
-
-    template_df = pd.DataFrame(columns=template_cols)
-
-    tmpl_buf = io.BytesIO()
-    with pd.ExcelWriter(tmpl_buf, engine="openpyxl") as writer:
-        template_df.to_excel(
-            writer,
-            index=False,
-            sheet_name="Company Data Template",
-        )
-    tmpl_buf.seek(0)
-
-    st.download_button(
-        label="⬇️ Download Company Data Template (Excel)",
-        data=tmpl_buf,
-        file_name="company_data_template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-
-# Build list of company columns for dropdown (if file is uploaded)
-client_mode_columns = ["<None>"]
-df_client_preview = pd.DataFrame()
-if client_file is not None:
-    try:
-        sheet_c_preview = None if client_sheet == "<first sheet>" else client_sheet
-        df_client_preview = read_any_cached(client_file, sheet_c_preview)
-        client_mode_columns = ["<None>"] + list(df_client_preview.columns)
-    except Exception as e:
-        st.warning(f"Could not read client file to detect columns: {e}")
+    colL, colR = st.columns(2)
+    with colL:
+        st.subheader("Company file")
+        st.markdown("Upload a data export from your TMS system that contains lanes (origin and destination), carriers, base rate charged, transportation mode (e.g., TL). \n"
+                    "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
+        client_file = st.file_uploader("Upload Company data (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="client")
+        client_sheets = infer_sheets(client_file)
+        client_sheet = st.selectbox("Company sheet (optional)", options=["<first sheet>"] + client_sheets if client_sheets else ["<first sheet>"])
         
-with colR:
-    st.subheader("Benchmark file")
-    st.markdown("Upload a data export from your benchmark source (e.g., DAT) that contains lanes (origin and destination) and base rate charged. \n"
-                "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
-    bench_file = st.file_uploader("Upload Benchmark (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="bench")
-    bench_sheets = infer_sheets(bench_file)
-    bench_sheet = st.selectbox("Benchmark sheet (optional)", options=["<first sheet>"] + bench_sheets if bench_sheets else ["<first sheet>"])
-bench_mode_columns = ["<None>"]
-if bench_file is not None:
-    try:
-        sheet_b_preview = None if bench_sheet == "<first sheet>" else bench_sheet
-        df_bench_preview = read_any_cached(bench_file, sheet_b_preview)
-        bench_mode_columns = ["<None>"] + list(df_bench_preview.columns)
-    except Exception as e:
-        st.warning(f"Could not read benchmark file to detect columns: {e}")
+        st.caption("If you don’t have a formatted company file with carrier names and modes, origin, destination, and base rate charged, download the template below, fill it in, and re-upload it as the company data.")
+    
+        # -------- Company template download --------
+        template_cols = [
+            "Origin City",
+            "Origin State",
+            "Dest City",
+            "Dest State",
+            "Total Base Charges",  # map this to company_cost_col
+            "Carrier Name",      # map this to client_carrier_col
+            "Carrier Mode",      # map this to mode_col
+        ]
+    
+        template_df = pd.DataFrame(columns=template_cols)
+    
+        tmpl_buf = io.BytesIO()
+        with pd.ExcelWriter(tmpl_buf, engine="openpyxl") as writer:
+            template_df.to_excel(
+                writer,
+                index=False,
+                sheet_name="Company Data Template",
+            )
+        tmpl_buf.seek(0)
+    
+        st.download_button(
+            label="⬇️ Download Company Data Template (Excel)",
+            data=tmpl_buf,
+            file_name="company_data_template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    
+    # Build list of company columns for dropdown (if file is uploaded)
+    client_mode_columns = ["<None>"]
+    df_client_preview = pd.DataFrame()
+    if client_file is not None:
+        try:
+            sheet_c_preview = None if client_sheet == "<first sheet>" else client_sheet
+            df_client_preview = read_any_cached(client_file, sheet_c_preview)
+            client_mode_columns = ["<None>"] + list(df_client_preview.columns)
+        except Exception as e:
+            st.warning(f"Could not read client file to detect columns: {e}")
+            
+    with colR:
+        st.subheader("Benchmark file")
+        st.markdown("Upload a data export from your benchmark source (e.g., DAT) that contains lanes (origin and destination) and base rate charged. \n"
+                    "**Once the file is uploaded, select the sheet from the dropdown options that contains the relevant data.**")
+        bench_file = st.file_uploader("Upload Benchmark (CSV/XLSX/XLS/XLSB)", type=["csv","xlsx","xls","xlsb"], key="bench")
+        bench_sheets = infer_sheets(bench_file)
+        bench_sheet = st.selectbox("Benchmark sheet (optional)", options=["<first sheet>"] + bench_sheets if bench_sheets else ["<first sheet>"])
+    bench_mode_columns = ["<None>"]
+    if bench_file is not None:
+        try:
+            sheet_b_preview = None if bench_sheet == "<first sheet>" else bench_sheet
+            df_bench_preview = read_any_cached(bench_file, sheet_b_preview)
+            bench_mode_columns = ["<None>"] + list(df_bench_preview.columns)
+        except Exception as e:
+            st.warning(f"Could not read benchmark file to detect columns: {e}")
         
 st.markdown("STOP - loading both files will likely take a few minutes. Please wait for the upload to complete before moving forward.")
 st.markdown("---")
 
-# ============ Columns & Options ============
-st.subheader("Columns & Options")
-st.markdown("Please enter the names of the columns where each data can be found in the company and benchmark files.")
-c1, c2, c3, c4 = st.columns(4)
+with tab_config:
+    st.subheader("Configure comparison")
 
-with c1:
-    client_lane_col = st.selectbox(
-        "Company lane column (key)", 
-        options=client_mode_columns,
-        index=0,
-        help="Choose the column in the company data file that has the lane names.")
-    company_cost_col = st.selectbox(
-        "Company cost column", 
-        options=client_mode_columns,
-        index=0,
-        help="Choose the column in the company data file that has the base charges (e.g., linehaul rates).")
-    company_fuel_col = st.selectbox(
-        "Company fuel surcharge $ column (optional)", 
-        options=client_mode_columns,
-        index=0,
-        help="Choose the column in the company data file that has the fuel surcharges.")
-    client_carrier_col = st.selectbox(
-        "Company carrier column", 
-        options=client_mode_columns,
-        index=0,
-        help="Choose the column in the company data file that has the carrier names.")
-    lane_detail_col = st.text_input(
-        "Company lane detail column (e.g., 'Lane_Detail' or '_lane')",
-        value="Lane_Detail"
-    )
-    mode_col_client = st.selectbox(
-        "Company mode column (TL / LTL)",
-        options=client_mode_columns,
-        index=0,
-        help="Choose the column in the client file that indicates TL vs LTL (or other modes)."
-    )
-    # Benchmark mode column
-    bench_mode_col = st.selectbox(
-        "Benchmark mode column (TL / LTL)",
-        options=bench_mode_columns,
-        index=0,
-        help="Choose the column in the benchmark file that indicates TL vs LTL (or other modes)."
-    )
-
-with c2:
-    # New controls to map city/state columns
-    city_state_cols = ["<None>"] + (list(df_client_preview.columns) if client_file is not None else [])
-
-    st.markdown("**Optional, use only if lane names are not a concatenated string and are listed across separate columns in the data file**: Map separate Origin / Destination city & state columns")
-    origin_city_col = st.selectbox("Origin city column", options=city_state_cols, index=0)
-    origin_state_col = st.selectbox("Origin state column", options=city_state_cols, index=0)
-    dest_city_col   = st.selectbox("Dest city column",   options=city_state_cols, index=0)
-    dest_state_col  = st.selectbox("Dest state column",  options=city_state_cols, index=0)
-
-with c3:
-    bench_lane_col = st.selectbox(
-        "Benchmark lane column (key)", 
-        options=bench_mode_columns,
-        index=0,
-        help="Choose the column in the benchmark data file that has the lane names.")
-    bench_cost_col = st.selectbox(
-        "Benchmark cost column", 
-        options=bench_mode_columns,
-        index=0,
-        help="Choose the column in the benchmark data file that has the base charges (e.g., linehaul rates).")
-    bench_fuel_col = st.selectbox(
-        "Benchmark fuel surcharge % column (optional)", 
-        options=bench_mode_columns,
-        index=0,
-        help="Choose the column in the benchmark data file that has the fuel surcharges.")
-    bench_agg = st.selectbox("Benchmark duplicate lanes aggregation", options=["mean","median"], index=0)
-
-with c4:
-    apply_fixed_exclusions = st.checkbox(
-        "Apply default location exclusions",
-        value=True,  # default ON, same behavior as before
-        help="If checked, the default list of locations will be excluded."
-    )
-
-    if apply_fixed_exclusions:
-        st.caption("Default locations currently excluded:")
-        st.code(", ".join(FIXED_EXCLUDE_LOCATIONS), language=None)
-
-    extra_locations = st.text_area(
-        "Extra locations to exclude (ALL CAPS, comma-separated)",
-        placeholder="ATLANTAGA, CHICAGOIL, BOSTONMA"
-    )
-    extra_carriers = st.text_area(
-        "Carriers to exclude (comma-separated, case-insensitive)",
-        placeholder="CARRIER A, CARRIER B"
-    )
-
-st.subheader("Mode Filter (exclude LTL, etc.)")
-st.markdown("Select the column from the dropdown that contains the transportation mode in the company data file. Then fill in the mode that is to be excluded.") 
-m1, m2 = st.columns(2)
-with m1:
-    mode_filter_col = st.selectbox(
-        "Company mode column (LTL/TL)",
-        options=client_mode_columns,
-        index=0,  # "<None>" by default
-        help="Choose the column that contains TL / LTL (or other mode) information."
-    )
-with m2:
-    exclude_modes_raw = st.text_input(
-        "Modes to exclude (comma-separated, case-insensitive)",
-        value="LTL",
-        help="Example: LTL, PARCEL"
-    )
-
-st.subheader("RFP Overrides")
-st.markdown("Provide lane names that are to be excluded from the RFP. Ensure lanes are entered in the format provided in the example.")
-letter_override_raw = st.text_area(
-    "Lane keys to treat as Vendor Letters instead of RFP (comma or newline separated)",
-    placeholder="Example: ATLANTAGADALLASTX, CHICAGOILHOUSTONTX",
-    help="Provide _lane values exactly as they appear in the output (e.g., ORIGINSTATEDESTSTATE). "
-         "Any lane listed here will be handled via vendor letters instead of RFP."
-)
-
-# Normalize override lane list (upper-case, stripped)
-override_letter_lanes = set()
-if letter_override_raw.strip():
-    # accept commas OR newlines
-    pieces = []
-    for chunk in letter_override_raw.replace("\n", ",").split(","):
-        c = chunk.strip()
-        if c:
-            pieces.append(c)
-    override_letter_lanes = {p.upper() for p in pieces}
-
-run = st.button("Run comparison")
+    with st.form("config_form", clear_on_submit=False):
+        # ============ Columns & Options ============
+        st.subheader("Columns & Options")
+        st.markdown("Please enter the names of the columns where each data can be found in the company and benchmark files.")
+        c1, c2, c3, c4 = st.columns(4)
+        
+        with c1:
+            client_lane_col = st.selectbox(
+                "Company lane column (key)",
+                options=client_mode_columns,
+                index=guess_col(client_mode_columns, ["_lane", "lane"]),
+                help="Choose the column in the company data file that has the lane names.")
+            company_cost_col = st.selectbox(
+                "Company cost column", 
+                options=client_mode_columns,
+                index=guess_col(client_mode_columns, ["cost", "charge", "linehaul", "rate", "amount"],
+                help="Choose the column in the company data file that has the base charges (e.g., linehaul rates).")
+            company_fuel_col = st.selectbox(
+                "Company fuel surcharge $ column (optional)", 
+                options=client_mode_columns,
+                index=guess_col(client_mode_columns, ["_lane", "lane"]),
+                help="Choose the column in the company data file that has the fuel surcharges.")
+            client_carrier_col = st.selectbox(
+                "Company carrier column", 
+                options=client_mode_columns,
+                index=guess_col(client_mode_columns, ["carrier name", "vendor name"]),
+                help="Choose the column in the company data file that has the carrier names.")
+            lane_detail_col = st.text_input(
+                "Company lane detail column (e.g., 'Lane_Detail' or '_lane')",
+                value="Lane_Detail"
+            )
+            mode_col_client = st.selectbox(
+                "Company mode column (TL / LTL)",
+                options=client_mode_columns,
+                index=0,
+                help="Choose the column in the client file that indicates TL vs LTL (or other modes)."
+            )
+            # Benchmark mode column
+            bench_mode_col = st.selectbox(
+                "Benchmark mode column (TL / LTL)",
+                options=bench_mode_columns,
+                index=0,
+                help="Choose the column in the benchmark file that indicates TL vs LTL (or other modes)."
+            )
+        
+        with c2:
+            # New controls to map city/state columns
+            city_state_cols = ["<None>"] + (list(df_client_preview.columns) if client_file is not None else [])
+        
+            st.markdown("**Optional, use only if lane names are not a concatenated string and are listed across separate columns in the data file**: Map separate Origin / Destination city & state columns")
+            origin_city_col = st.selectbox("Origin city column", options=city_state_cols, index=0)
+            origin_state_col = st.selectbox("Origin state column", options=city_state_cols, index=0)
+            dest_city_col   = st.selectbox("Dest city column",   options=city_state_cols, index=0)
+            dest_state_col  = st.selectbox("Dest state column",  options=city_state_cols, index=0)
+        
+        with c3:
+            bench_lane_col = st.selectbox(
+                "Benchmark lane column (key)", 
+                options=bench_mode_columns,
+                index=0,
+                help="Choose the column in the benchmark data file that has the lane names.")
+            bench_cost_col = st.selectbox(
+                "Benchmark cost column", 
+                options=bench_mode_columns,
+                index=0,
+                help="Choose the column in the benchmark data file that has the base charges (e.g., linehaul rates).")
+            bench_fuel_col = st.selectbox(
+                "Benchmark fuel surcharge % column (optional)", 
+                options=bench_mode_columns,
+                index=0,
+                help="Choose the column in the benchmark data file that has the fuel surcharges.")
+            bench_agg = st.selectbox("Benchmark duplicate lanes aggregation", options=["mean","median"], index=0)
+        
+        with c4:
+            apply_fixed_exclusions = st.checkbox(
+                "Apply default location exclusions",
+                value=True,  # default ON, same behavior as before
+                help="If checked, the default list of locations will be excluded."
+            )
+        
+            if apply_fixed_exclusions:
+                st.caption("Default locations currently excluded:")
+                st.code(", ".join(FIXED_EXCLUDE_LOCATIONS), language=None)
+        
+            extra_locations = st.text_area(
+                "Extra locations to exclude (ALL CAPS, comma-separated)",
+                placeholder="ATLANTAGA, CHICAGOIL, BOSTONMA"
+            )
+            extra_carriers = st.text_area(
+                "Carriers to exclude (comma-separated, case-insensitive)",
+                placeholder="CARRIER A, CARRIER B"
+            )
+        
+        st.subheader("Mode handling")
+    
+        match_by_mode = st.checkbox(
+            "Match lanes by mode (TL/LTL) when both files have a mode column selected",
+            value=True,
+            help="If enabled, the comparison will include mode in lane matching when both mode columns are mapped."
+        )
+        
+        exclude_modes_raw = st.text_input(
+            "Modes to exclude (comma-separated, case-insensitive)",
+            value="LTL",
+            help="Example: LTL, PARCEL. Uses the Company mode column you mapped above."
+        )
+    
+        st.subheader("RFP Overrides")
+        st.markdown("Provide lane names that are to be excluded from the RFP. Ensure lanes are entered in the format provided in the example.")
+        letter_override_raw = st.text_area(
+            "Lane keys to treat as Vendor Letters instead of RFP (comma or newline separated)",
+            placeholder="Example: ATLANTAGADALLASTX, CHICAGOILHOUSTONTX",
+            help="Provide _lane values exactly as they appear in the output (e.g., ORIGINSTATEDESTSTATE). "
+                 "Any lane listed here will be handled via vendor letters instead of RFP."
+        )
+        
+        # Normalize override lane list (upper-case, stripped)
+        override_letter_lanes = set()
+        if letter_override_raw.strip():
+            # accept commas OR newlines
+            pieces = []
+            for chunk in letter_override_raw.replace("\n", ",").split(","):
+                c = chunk.strip()
+                if c:
+                    pieces.append(c)
+            override_letter_lanes = {p.upper() for p in pieces}
+        
+        submitted = st.form_submit_button("Run comparison")
 
 # If user clicked "Run comparison", recompute and store results
-if run:
+if submitted:
+    with st.status("Running comparison…", expanded=True) as status:
+    st.write("Validating inputs")
+    if client_file is None or bench_file is None:
+        status.update(label="Missing inputs", state="error")
+        st.error("Please upload both Company and Benchmark files.")
+        st.stop()
+
+    st.write("Reading files")
+    # (keep your existing read_any_cached calls)
+
+    st.write("Normalizing lanes and applying mappings")
+    # (keep your existing lane build / validation)
+
+    st.write("Aggregating benchmark lanes")
+    # (keep your existing benchmark aggregation)
+
+    st.write("Computing deltas and applying exclusions")
+    # (keep your existing merge / delta / exclusion logic)
+
+    st.write("Preparing outputs")
+    # (keep your existing out / summary dfs / exports)
+
+    status.update(label="Comparison complete", state="complete")
+
     # ============ Load data ============
     if client_file is None or bench_file is None:
         st.error("Please upload both Company and Benchmark files.")
@@ -917,7 +975,7 @@ if run:
         and bench_mode_col in df_bench.columns
     )
     
-    use_mode_matching = client_has_mode and bench_has_mode
+    use_mode_matching = match_by_mode and client_has_mode and bench_has_mode
     
     # ---------- Optionally build _lane from city/state BEFORE validation ----------
     # Only try to build a compact key if the user chose city/state columns
@@ -1342,9 +1400,31 @@ if run:
     st.session_state["results_ready"] = True
 
 # If we still don't have results, show a hint and stop
-if not st.session_state["results_ready"]:
-    st.info("Click 'Run comparison' to generate results.")
-    st.stop()
+with tab_results:
+    st.subheader("Results")
+
+    if not st.session_state["results_ready"]:
+        st.info("Run the comparison in the Configure tab to see results.")
+    else:
+        out = st.session_state["out"]
+        gpf_export = st.session_state["gpf_export"]
+        summary_df = st.session_state["summary_df"]
+        excluded_summary_df = st.session_state["excluded_summary_df"]
+        excluded_detail_df = st.session_state["excluded_detail_df"]
+
+        # ============ KPI strip (8) ============
+        total_lanes = int(out.shape[0]) if out is not None else 0
+        negotiate_lanes = int((out["action"] == "NEGOTIATE").sum()) if total_lanes else 0
+        total_savings = float(out.loc[out["action"] == "NEGOTIATE", "delta"].clip(lower=0).sum(skipna=True)) if total_lanes else 0.0
+        match_rate = float(out["benchmark_cost"].notna().mean()) if total_lanes and "benchmark_cost" in out.columns else 0.0
+        excluded_lanes = int(excluded_detail_df.shape[0]) if excluded_detail_df is not None else 0
+
+        k1, k2, k3, k4, k5 = st.columns(5)
+        k1.metric("Total lanes", f"{total_lanes:,}")
+        k2.metric("Negotiate lanes", f"{negotiate_lanes:,}")
+        k3.metric("Total savings (Δ>0)", f"${total_savings:,.0f}")
+        k4.metric("Benchmark match rate", f"{match_rate:.0%}")
+        k5.metric("Excluded lanes", f"{excluded_lanes:,}")
 
 # From here on, ALWAYS use the stored versions
 out = st.session_state["out"]
@@ -1619,606 +1699,613 @@ if "comparison_xlsx" in st.session_state:
 # ------------------ RFP Template Controls ------------------
 st.markdown("---")
 st.markdown("""
-#### 📝 RFP Template & Letters
+with tab_exports:
+    st.subheader("Exports")
 
-Use this section when you are planning an **RFP event**:
-
-The **RFP Template (Excel)** contains:
-  - A cover sheet with overview, instructions, and contact info
-  - A bid timeline
-  - A tab of RFP lanes with **Market Rate** and fields for carrier input
-  - A location list tab
-
-The **RFP letters (by carrier)**:
-  - Reference the total number of lanes in the RFP
-  - Highlight the lanes that carrier currently services above benchmark
-  - Show the **top 10% lanes with the largest variance**, plus summaries. Please note that the top 10% threshold cannot be adjusted. If there are certainly lanes to be excluded from the summary, please ensure they are entered in the 'RFP overrides' section above.
-""")
-st.subheader("📦 Build RFP Template (Excel)")
-
-# Overview text (Tab 1)
-overview_text = st.text_area(
-    "RFP overview text (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
-    value="Greif, Inc. is a global manufacturer of industrial packaging products" 
-        "and services, supplying fiber, steel, and plastic drums; intermediate " 
-        "bulk containers; corrugated and paper-based packaging; and containerboard " 
-        "to customers worldwide. The company also offers packaging accessories, " 
-        "transit protection products, and a range of reconditioning, recycling, " 
-        "and supply-chain services that support Circular Economy and sustainability initiatives. "
-        "Greif serves major industries including chemicals, pharmaceuticals, agriculture, "
-        "food and beverage, petroleum, and general manufacturing. With a broad production "
-        "footprint and a strong commitment to operational excellence, product quality, and " 
-        "environmental stewardship, Greif is a trusted partner for safe, reliable, and "
-        "efficient packaging solutions. Founded in 1877, the company is headquartered in Delaware, Ohio.",
-    help="This text will populate the Overview tab in the RFP."
-)
-
-instructions_text = st.text_area(
-    "RFP Instructions (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
-    value="Greif is continously looking to improve our ways of working and unlock efficiencies across our Supply Chain. "
-        'Therefore, we are leveraging our volume and knowledge of market rates to complete a bid for several of our lanes and '
-        'request that your company participate. \n'
-        'In this document you will find three tabs:\n(1) Bid timeline - expected due dates and responses dates\n'
-        '(2) All lanes that are open to bid - please enter bid cost as base rate charge and fuel surcharge as percentage of base rate'
-        '\n(3) Locations covered by lanes included in this RFP - for reference only, no action required\n '
-        'We request you complete and return this RFP by no later than {reply_by}.',
-    height=200
-)
-
-instruction_lines = [line for line in instructions_text.split("\n") if line.strip()]
-
-# Timeline text (Tab 2)
-timeline_text = st.text_area(
-    "Bid timeline (Tab 2) Please **revise the text below** to be specific to your company's RFP timeline. Any edits you make here will be reflected in the RFP template. Please enter as one line per milestone, format: Date, Milestone",
-    value="4/22, Bid Release\n5/1, Round 1 Carrier Offers Due\n5/15, Round 1 "
-    "[Company Name] Feedback to Carriers\n5/29, Round 2 Carrier Offers Due\n6/7, "
-    "Round 2 [Company Name] Feedback to Carriers & Final Negotiations\n6/13, Final Awards",
-    help="Each line should have a date and a milestone, separated by a comma."
-)
-
-# Location list upload (Tab 4)
-rfp_loc_file = st.file_uploader(
-    "Upload location list for RFP (optional – becomes last tab)",
-    type=["xlsx", "xls", "csv"],
-    key="rfp_locs"
-)
-
-# ---------- Build dataframes used in the export ----------
-
-
-# Tab 2: Timeline -> Date + Milestone
-timeline_rows = []
-for raw in timeline_text.split("\n"):
-    if not raw.strip():
-        continue
-    if "," in raw:
-        date_str, milestone = raw.split(",", 1)
-        timeline_rows.append({"Date": date_str.strip(), "Milestone": milestone.strip()})
+    if not st.session_state["results_ready"]:
+        st.info("Run the comparison first to enable exports.")
     else:
-        timeline_rows.append({"Date": raw.strip(), "Milestone": ""})
-
-if timeline_rows:
-    timeline_df = pd.DataFrame(timeline_rows)
-else:
-    timeline_df = pd.DataFrame(columns=["Date", "Milestone"])
-
-# Tab 3: Bid Lanes -> group rfp_df by lane and compute count + market rate
-lane_cols = ["origin_city", "origin_state", "dest_city", "dest_state"]
-
-if not rfp_df.empty:
-    rfp_group = (
-        rfp_df
-        .groupby(lane_cols, dropna=False)
-        .agg(
-            Shipment_Count=("_lane", "size"),
-            Market_Rate=("benchmark_cost", "mean")
-        )
-        .reset_index()
+        out = st.session_state["out"]
+        summary_df = st.session_state["summary_df"]
+    #### 📝 RFP Template & Letters
+    
+    Use this section when you are planning an **RFP event**:
+    
+    The **RFP Template (Excel)** contains:
+      - A cover sheet with overview, instructions, and contact info
+      - A bid timeline
+      - A tab of RFP lanes with **Market Rate** and fields for carrier input
+      - A location list tab
+    
+    The **RFP letters (by carrier)**:
+      - Reference the total number of lanes in the RFP
+      - Highlight the lanes that carrier currently services above benchmark
+      - Show the **top 10% lanes with the largest variance**, plus summaries. Please note that the top 10% threshold cannot be adjusted. If there are certainly lanes to be excluded from the summary, please ensure they are entered in the 'RFP overrides' section above.
+    """)
+    st.subheader("📦 Build RFP Template (Excel)")
+    
+    # Overview text (Tab 1)
+    overview_text = st.text_area(
+        "RFP overview text (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
+        value="Greif, Inc. is a global manufacturer of industrial packaging products" 
+            "and services, supplying fiber, steel, and plastic drums; intermediate " 
+            "bulk containers; corrugated and paper-based packaging; and containerboard " 
+            "to customers worldwide. The company also offers packaging accessories, " 
+            "transit protection products, and a range of reconditioning, recycling, " 
+            "and supply-chain services that support Circular Economy and sustainability initiatives. "
+            "Greif serves major industries including chemicals, pharmaceuticals, agriculture, "
+            "food and beverage, petroleum, and general manufacturing. With a broad production "
+            "footprint and a strong commitment to operational excellence, product quality, and " 
+            "environmental stewardship, Greif is a trusted partner for safe, reliable, and "
+            "efficient packaging solutions. Founded in 1877, the company is headquartered in Delaware, Ohio.",
+        help="This text will populate the Overview tab in the RFP."
     )
-
-    bid_lanes_export = pd.DataFrame({
-        "Zip ID": range(1, len(rfp_group) + 1),
-        "Move Type": "US Domestic",
-        "Origin City": rfp_group["origin_city"],
-        "Origin State": rfp_group["origin_state"],
-        "Origin Country": "US",
-        "Destination City": rfp_group["dest_city"],
-        "Destination State": rfp_group["dest_state"],
-        "Destination Country": "US",
-        "Shipment Count": rfp_group["Shipment_Count"],
-        "Market Rate": rfp_group["Market_Rate"],  # benchmark_cost
-        "Flat rate (before fuel surcharge)": pd.NA,
-        "Fuel surcharge (as percentage of flat rate)": pd.NA,
-    })
-else:
-    bid_lanes_export = pd.DataFrame(
-        columns=[
-            "Zip ID", "Move Type",
-            "Origin City", "Origin State", "Origin Country",
-            "Destination City", "Destination State", "Destination Country",
-            "Shipment Count", "Market Rate",
-            "Flat rate (before fuel surcharge)",
-            "Fuel surcharge (as percentage of flat rate)",
-        ]
+    
+    instructions_text = st.text_area(
+        "RFP Instructions (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
+        value="Greif is continously looking to improve our ways of working and unlock efficiencies across our Supply Chain. "
+            'Therefore, we are leveraging our volume and knowledge of market rates to complete a bid for several of our lanes and '
+            'request that your company participate. \n'
+            'In this document you will find three tabs:\n(1) Bid timeline - expected due dates and responses dates\n'
+            '(2) All lanes that are open to bid - please enter bid cost as base rate charge and fuel surcharge as percentage of base rate'
+            '\n(3) Locations covered by lanes included in this RFP - for reference only, no action required\n '
+            'We request you complete and return this RFP by no later than {reply_by}.',
+        height=200
     )
-
-# ------------------ Export button + writer ------------------
-from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
-
-if st.button("⬇️ Build RFP Template (Excel)"):
-
-    # Location list
-    if rfp_loc_file is not None:
-        loc_df = read_any_cached(rfp_loc_file)
-    else:
-        loc_df = pd.DataFrame()
-
-    # Prepare text lines for sections
-    overview_lines = [line for line in overview_text.split("\n") if line.strip()]
+    
     instruction_lines = [line for line in instructions_text.split("\n") if line.strip()]
-
-    # Simple contact template (user will overwrite in Excel)
-    contact_lines = [
-        "Name: _______________________________",
-        "Title: ______________________________",
-        "Company: ____________________________",
-        "Email: _____________________________",
-        "Phone: _____________________________",
-    ]
-
-    rfp_buf = io.BytesIO()
-    with pd.ExcelWriter(rfp_buf, engine="openpyxl") as writer:
-
-        # Create an empty sheet for Tab 1
-        pd.DataFrame().to_excel(writer, sheet_name="RFP Overview", index=False)
-        ws = writer.sheets["RFP Overview"]
-
-        # ---- Helper functions for sections ----
-
-        thin_border = Border(
-            left=Side(style="thin", color="000000"),
-            right=Side(style="thin", color="000000"),
-            top=Side(style="thin", color="000000"),
-            bottom=Side(style="thin", color="000000"),
+    
+    # Timeline text (Tab 2)
+    timeline_text = st.text_area(
+        "Bid timeline (Tab 2) Please **revise the text below** to be specific to your company's RFP timeline. Any edits you make here will be reflected in the RFP template. Please enter as one line per milestone, format: Date, Milestone",
+        value="4/22, Bid Release\n5/1, Round 1 Carrier Offers Due\n5/15, Round 1 "
+        "[Company Name] Feedback to Carriers\n5/29, Round 2 Carrier Offers Due\n6/7, "
+        "Round 2 [Company Name] Feedback to Carriers & Final Negotiations\n6/13, Final Awards",
+        help="Each line should have a date and a milestone, separated by a comma."
+    )
+    
+    # Location list upload (Tab 4)
+    rfp_loc_file = st.file_uploader(
+        "Upload location list for RFP (optional – becomes last tab)",
+        type=["xlsx", "xls", "csv"],
+        key="rfp_locs"
+    )
+    
+    # ---------- Build dataframes used in the export ----------
+    
+    # Tab 2: Timeline -> Date + Milestone
+    timeline_rows = []
+    for raw in timeline_text.split("\n"):
+        if not raw.strip():
+            continue
+        if "," in raw:
+            date_str, milestone = raw.split(",", 1)
+            timeline_rows.append({"Date": date_str.strip(), "Milestone": milestone.strip()})
+        else:
+            timeline_rows.append({"Date": raw.strip(), "Milestone": ""})
+    
+    if timeline_rows:
+        timeline_df = pd.DataFrame(timeline_rows)
+    else:
+        timeline_df = pd.DataFrame(columns=["Date", "Milestone"])
+    
+    # Tab 3: Bid Lanes -> group rfp_df by lane and compute count + market rate
+    lane_cols = ["origin_city", "origin_state", "dest_city", "dest_state"]
+    
+    if not rfp_df.empty:
+        rfp_group = (
+            rfp_df
+            .groupby(lane_cols, dropna=False)
+            .agg(
+                Shipment_Count=("_lane", "size"),
+                Market_Rate=("benchmark_cost", "mean")
+            )
+            .reset_index()
         )
-
-        def apply_border(ws, start_row, end_row, start_col="B", end_col="H"):
-            for row in ws[f"{start_col}{start_row}:{end_col}{end_row}"]:
-                for cell in row:
-                    cell.border = thin_border
-
-        def add_text_section(ws, title, lines, start_row, fill_color="EEECE1"):
-            """
-            Adds a titled, shaded, bordered section starting at row `start_row`.
-            Returns the next free row after the section (with a blank row spacer).
-            """
-            # Section title in column B
-            title_cell = ws[f"B{start_row}"]
-            title_cell.value = title
+    
+        bid_lanes_export = pd.DataFrame({
+            "Zip ID": range(1, len(rfp_group) + 1),
+            "Move Type": "US Domestic",
+            "Origin City": rfp_group["origin_city"],
+            "Origin State": rfp_group["origin_state"],
+            "Origin Country": "US",
+            "Destination City": rfp_group["dest_city"],
+            "Destination State": rfp_group["dest_state"],
+            "Destination Country": "US",
+            "Shipment Count": rfp_group["Shipment_Count"],
+            "Market Rate": rfp_group["Market_Rate"],  # benchmark_cost
+            "Flat rate (before fuel surcharge)": pd.NA,
+            "Fuel surcharge (as percentage of flat rate)": pd.NA,
+        })
+    else:
+        bid_lanes_export = pd.DataFrame(
+            columns=[
+                "Zip ID", "Move Type",
+                "Origin City", "Origin State", "Origin Country",
+                "Destination City", "Destination State", "Destination Country",
+                "Shipment Count", "Market Rate",
+                "Flat rate (before fuel surcharge)",
+                "Fuel surcharge (as percentage of flat rate)",
+            ]
+        )
+    
+    # ------------------ Export button + writer ------------------
+    from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+    
+    if st.button("⬇️ Build RFP Template (Excel)"):
+    
+        # Location list
+        if rfp_loc_file is not None:
+            loc_df = read_any_cached(rfp_loc_file)
+        else:
+            loc_df = pd.DataFrame()
+    
+        # Prepare text lines for sections
+        overview_lines = [line for line in overview_text.split("\n") if line.strip()]
+        instruction_lines = [line for line in instructions_text.split("\n") if line.strip()]
+    
+        # Simple contact template (user will overwrite in Excel)
+        contact_lines = [
+            "Name: _______________________________",
+            "Title: ______________________________",
+            "Company: ____________________________",
+            "Email: _____________________________",
+            "Phone: _____________________________",
+        ]
+    
+        rfp_buf = io.BytesIO()
+        with pd.ExcelWriter(rfp_buf, engine="openpyxl") as writer:
+    
+            # Create an empty sheet for Tab 1
+            pd.DataFrame().to_excel(writer, sheet_name="RFP Overview", index=False)
+            ws = writer.sheets["RFP Overview"]
+    
+            # ---- Helper functions for sections ----
+    
+            thin_border = Border(
+                left=Side(style="thin", color="000000"),
+                right=Side(style="thin", color="000000"),
+                top=Side(style="thin", color="000000"),
+                bottom=Side(style="thin", color="000000"),
+            )
+    
+            def apply_border(ws, start_row, end_row, start_col="B", end_col="H"):
+                for row in ws[f"{start_col}{start_row}:{end_col}{end_row}"]:
+                    for cell in row:
+                        cell.border = thin_border
+    
+            def add_text_section(ws, title, lines, start_row, fill_color="EEECE1"):
+                """
+                Adds a titled, shaded, bordered section starting at row `start_row`.
+                Returns the next free row after the section (with a blank row spacer).
+                """
+                # Section title in column B
+                title_cell = ws[f"B{start_row}"]
+                title_cell.value = title
+                title_cell.font = Font(size=14, bold=True)
+                title_cell.alignment = Alignment(horizontal="left", vertical="bottom")
+    
+                # Body starts one row below title
+                body_start = start_row + 1
+    
+                # Choose a reasonable body height based on number of lines
+                # at least 5 rows high
+                body_height = max(5, len(lines) + 2)
+                body_end = body_start + body_height - 1
+    
+                # Merge body area B..H
+                merge_range = f"B{body_start}:H{body_end}"
+                ws.merge_cells(merge_range)
+    
+                # Put text into top-left of merged region
+                cell = ws[f"B{body_start}"]
+                cell.value = "\n".join(lines) if lines else ""
+                cell.alignment = Alignment(
+                    wrap_text=True,
+                    vertical="top",
+                    horizontal="left",
+                )
+                cell.font = Font(size=12)
+    
+                # Shading
+                cell.fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
+    
+                # Apply border to the entire merged block
+                apply_border(ws, body_start, body_end)
+    
+                # Return next free row (with one blank row for spacing)
+                return body_end + 2
+    
+            # ---- Column widths for readability ----
+            ws.column_dimensions["A"].width = 2
+            ws.column_dimensions["B"].width = 60
+            for col in ["C", "D", "E", "F", "G", "H"]:
+                ws.column_dimensions[col].width = 20
+    
+            # ===========================
+            # SECTION 1 — OVERVIEW
+            # ===========================
+            current_row = 2
+            current_row = add_text_section(
+                ws,
+                title="1. Overview",
+                lines=overview_lines,
+                start_row=current_row,
+                fill_color="FFF2CC",  # light yellow
+            )
+    
+            # ===========================
+            # SECTION 2 — INSTRUCTIONS
+            # ===========================
+            current_row = add_text_section(
+                ws,
+                title="2. Instructions",
+                lines=instruction_lines,
+                start_row=current_row,
+                fill_color="E2EFDA",  # light green
+            )
+    
+            # ===========================
+            # SECTION 3 — CONTACT INFORMATION
+            # ===========================
+            current_row = add_text_section(
+                ws,
+                title="3. Contact Information",
+                lines=contact_lines,
+                start_row=current_row,
+                fill_color="D9E1F2",  # light blue
+            )
+    
+            # ---- TAB 2: Bid Timeline ----
+            sheet_name_timeline = "Bid Timeline"
+            
+            # Write timeline data starting at row 4 to leave space for title
+            timeline_df.to_excel(writer, sheet_name=sheet_name_timeline, index=False, startrow=3, startcol=1)
+            ws_tl = writer.sheets[sheet_name_timeline]
+            
+            # Thin border style
+            thin_border = Border(
+                left=Side(style="thin", color="000000"),
+                right=Side(style="thin", color="000000"),
+                top=Side(style="thin", color="000000"),
+                bottom=Side(style="thin", color="000000"),
+            )
+            
+            # ---- Title at top ----
+            title_cell = ws_tl["B2"]
+            title_cell.value = "Bid Timeline"
             title_cell.font = Font(size=14, bold=True)
             title_cell.alignment = Alignment(horizontal="left", vertical="bottom")
-
-            # Body starts one row below title
-            body_start = start_row + 1
-
-            # Choose a reasonable body height based on number of lines
-            # at least 5 rows high
-            body_height = max(5, len(lines) + 2)
-            body_end = body_start + body_height - 1
-
-            # Merge body area B..H
-            merge_range = f"B{body_start}:H{body_end}"
-            ws.merge_cells(merge_range)
-
-            # Put text into top-left of merged region
-            cell = ws[f"B{body_start}"]
-            cell.value = "\n".join(lines) if lines else ""
-            cell.alignment = Alignment(
-                wrap_text=True,
-                vertical="top",
-                horizontal="left",
-            )
-            cell.font = Font(size=12)
-
-            # Shading
-            cell.fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
-
-            # Apply border to the entire merged block
-            apply_border(ws, body_start, body_end)
-
-            # Return next free row (with one blank row for spacing)
-            return body_end + 2
-
-        # ---- Column widths for readability ----
-        ws.column_dimensions["A"].width = 2
-        ws.column_dimensions["B"].width = 60
-        for col in ["C", "D", "E", "F", "G", "H"]:
-            ws.column_dimensions[col].width = 20
-
-        # ===========================
-        # SECTION 1 — OVERVIEW
-        # ===========================
-        current_row = 2
-        current_row = add_text_section(
-            ws,
-            title="1. Overview",
-            lines=overview_lines,
-            start_row=current_row,
-            fill_color="FFF2CC",  # light yellow
-        )
-
-        # ===========================
-        # SECTION 2 — INSTRUCTIONS
-        # ===========================
-        current_row = add_text_section(
-            ws,
-            title="2. Instructions",
-            lines=instruction_lines,
-            start_row=current_row,
-            fill_color="E2EFDA",  # light green
-        )
-
-        # ===========================
-        # SECTION 3 — CONTACT INFORMATION
-        # ===========================
-        current_row = add_text_section(
-            ws,
-            title="3. Contact Information",
-            lines=contact_lines,
-            start_row=current_row,
-            fill_color="D9E1F2",  # light blue
-        )
-
-        # ---- TAB 2: Bid Timeline ----
-        sheet_name_timeline = "Bid Timeline"
-        
-        # Write timeline data starting at row 4 to leave space for title
-        timeline_df.to_excel(writer, sheet_name=sheet_name_timeline, index=False, startrow=3, startcol=1)
-        ws_tl = writer.sheets[sheet_name_timeline]
-        
-        # Thin border style
-        thin_border = Border(
-            left=Side(style="thin", color="000000"),
-            right=Side(style="thin", color="000000"),
-            top=Side(style="thin", color="000000"),
-            bottom=Side(style="thin", color="000000"),
-        )
-        
-        # ---- Title at top ----
-        title_cell = ws_tl["B2"]
-        title_cell.value = "Bid Timeline"
-        title_cell.font = Font(size=14, bold=True)
-        title_cell.alignment = Alignment(horizontal="left", vertical="bottom")
-        
-        # Determine data range
-        start_row = 4  # where we wrote the header
-        end_row = start_row + len(timeline_df)  # header + rows
-        start_col = "B"
-        end_col = chr(ord(start_col) + len(timeline_df.columns) - 1)  # e.g. B + 1 -> C if 2 columns
-        
-        # Header row styling (light shading, bold, centered)
-        header_row = ws_tl[start_row]
-        for cell in header_row:
-            cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell.fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
-        
-        # Data row styling (wrapped, left-aligned for Milestone)
-        for row in ws_tl.iter_rows(min_row=start_row+1, max_row=end_row):
-            for cell in row:
-                cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
-        
-        # Apply border & shading around the full table block (header + data)
-        for row in ws_tl[f"{start_col}{start_row}:{end_col}{end_row}"]:
-            for cell in row:
-                cell.border = thin_border
-        
-        # Light background for the whole table area (optional)
-        for row in ws_tl[f"{start_col}{start_row}:{end_col}{end_row}"]:
-            for cell in row:
-                if cell.row == start_row:
-                    continue  # header already shaded
-                cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
-        
-        # ---- Autosize columns so text fits ----
-        for col_cells in ws_tl.iter_cols(min_row=start_row, max_row=end_row, min_col=2, max_col=1+len(timeline_df.columns)):
-            max_length = 0
-            col_letter = col_cells[0].column_letter
-            for cell in col_cells:
-                try:
-                    val = str(cell.value) if cell.value is not None else ""
-                    max_length = max(max_length, len(val))
-                except Exception:
-                    pass
-            # Add some padding
-            ws_tl.column_dimensions[col_letter].width = max_length + 4
-
-        # ---- REMOVE ANY FORMATTING FROM COLUMN A ----
-        for cell in ws_tl["A:A"]:
-            cell.border = Border()  # remove border
-            cell.fill = PatternFill(fill_type=None)  # remove background
-            cell.font = Font(size=11)  # standard font
-            cell.alignment = Alignment(horizontal="left", vertical="center")
             
-        ws_tl.column_dimensions["A"].width = 2  # narrow blank column
-
-        # ---- TAB 3: Bid Lanes ----
-        sheet_name_lanes = "Bid Lanes"
-
-        # Write the DataFrame starting at row 4 (leaving room for title)
-        bid_lanes_export.to_excel(writer, sheet_name=sheet_name_lanes, index=False, startrow=3, startcol=1)
-        ws_bl = writer.sheets[sheet_name_lanes]
-        
-        # Borders
-        thin_border = Border(
-            left=Side(style="thin", color="000000"),
-            right=Side(style="thin", color="000000"),
-            top=Side(style="thin", color="000000"),
-            bottom=Side(style="thin", color="000000"),
-        )
-        
-        # ---- Title ----
-        title_cell_bl = ws_bl["B2"]
-        title_cell_bl.value = "Bid Lanes"
-        title_cell_bl.font = Font(size=14, bold=True)
-        title_cell_bl.alignment = Alignment(horizontal="left", vertical="bottom")
-        
-        # Determine data range
-        start_row_bl = 4  # header row from to_excel(startrow=3)
-        end_row_bl = start_row_bl + len(bid_lanes_export)  # header + data rows
-        start_col_idx = 2  # column B
-        num_cols = len(bid_lanes_export.columns)
-        end_col_idx = start_col_idx + num_cols - 1
-        
-        # Map column index -> header text
-        header_cells = ws_bl[start_row_bl]
-        col_idx_to_name = {}
-        for cell in header_cells:
-            col_idx_to_name[cell.column] = str(cell.value)
-        
-        # Define which columns are carrier-fill
-        carrier_fill_cols = {
-            "Flat rate (before fuel surcharge)",
-            "Fuel surcharge (as percentage of flat rate)",
-        }
-        
-        # Some colors
-        header_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")  # light yellow
-        data_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")    # white
-        carrier_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid") # light blue for carrier inputs
-        
-        # ---- Style header row ----
-        for cell in header_cells:
-            cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            cell.fill = header_fill
-            cell.border = thin_border
-        
-        # ---- Style data rows ----
-        for row in ws_bl.iter_rows(min_row=start_row_bl+1, max_row=end_row_bl,
-                                   min_col=start_col_idx, max_col=end_col_idx):
-            for cell in row:
-                header_name = col_idx_to_name.get(cell.column, "")
-                # Carrier-fill columns get special shading
-                if header_name in carrier_fill_cols:
-                    cell.fill = carrier_fill
-                else:
-                    cell.fill = data_fill
-        
-                cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
+            # Determine data range
+            start_row = 4  # where we wrote the header
+            end_row = start_row + len(timeline_df)  # header + rows
+            start_col = "B"
+            end_col = chr(ord(start_col) + len(timeline_df.columns) - 1)  # e.g. B + 1 -> C if 2 columns
+            
+            # Header row styling (light shading, bold, centered)
+            header_row = ws_tl[start_row]
+            for cell in header_row:
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                cell.fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")
+            
+            # Data row styling (wrapped, left-aligned for Milestone)
+            for row in ws_tl.iter_rows(min_row=start_row+1, max_row=end_row):
+                for cell in row:
+                    cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
+            
+            # Apply border & shading around the full table block (header + data)
+            for row in ws_tl[f"{start_col}{start_row}:{end_col}{end_row}"]:
+                for cell in row:
+                    cell.border = thin_border
+            
+            # Light background for the whole table area (optional)
+            for row in ws_tl[f"{start_col}{start_row}:{end_col}{end_row}"]:
+                for cell in row:
+                    if cell.row == start_row:
+                        continue  # header already shaded
+                    cell.fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+            
+            # ---- Autosize columns so text fits ----
+            for col_cells in ws_tl.iter_cols(min_row=start_row, max_row=end_row, min_col=2, max_col=1+len(timeline_df.columns)):
+                max_length = 0
+                col_letter = col_cells[0].column_letter
+                for cell in col_cells:
+                    try:
+                        val = str(cell.value) if cell.value is not None else ""
+                        max_length = max(max_length, len(val))
+                    except Exception:
+                        pass
+                # Add some padding
+                ws_tl.column_dimensions[col_letter].width = max_length + 4
+    
+            # ---- REMOVE ANY FORMATTING FROM COLUMN A ----
+            for cell in ws_tl["A:A"]:
+                cell.border = Border()  # remove border
+                cell.fill = PatternFill(fill_type=None)  # remove background
+                cell.font = Font(size=11)  # standard font
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+                
+            ws_tl.column_dimensions["A"].width = 2  # narrow blank column
+    
+            # ---- TAB 3: Bid Lanes ----
+            sheet_name_lanes = "Bid Lanes"
+    
+            # Write the DataFrame starting at row 4 (leaving room for title)
+            bid_lanes_export.to_excel(writer, sheet_name=sheet_name_lanes, index=False, startrow=3, startcol=1)
+            ws_bl = writer.sheets[sheet_name_lanes]
+            
+            # Borders
+            thin_border = Border(
+                left=Side(style="thin", color="000000"),
+                right=Side(style="thin", color="000000"),
+                top=Side(style="thin", color="000000"),
+                bottom=Side(style="thin", color="000000"),
+            )
+            
+            # ---- Title ----
+            title_cell_bl = ws_bl["B2"]
+            title_cell_bl.value = "Bid Lanes"
+            title_cell_bl.font = Font(size=14, bold=True)
+            title_cell_bl.alignment = Alignment(horizontal="left", vertical="bottom")
+            
+            # Determine data range
+            start_row_bl = 4  # header row from to_excel(startrow=3)
+            end_row_bl = start_row_bl + len(bid_lanes_export)  # header + data rows
+            start_col_idx = 2  # column B
+            num_cols = len(bid_lanes_export.columns)
+            end_col_idx = start_col_idx + num_cols - 1
+            
+            # Map column index -> header text
+            header_cells = ws_bl[start_row_bl]
+            col_idx_to_name = {}
+            for cell in header_cells:
+                col_idx_to_name[cell.column] = str(cell.value)
+            
+            # Define which columns are carrier-fill
+            carrier_fill_cols = {
+                "Flat rate (before fuel surcharge)",
+                "Fuel surcharge (as percentage of flat rate)",
+            }
+            
+            # Some colors
+            header_fill = PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid")  # light yellow
+            data_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")    # white
+            carrier_fill = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid") # light blue for carrier inputs
+            
+            # ---- Style header row ----
+            for cell in header_cells:
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                cell.fill = header_fill
                 cell.border = thin_border
-        
-        # ---- Autosize columns so text fits ----
-        for col_idx in range(start_col_idx, end_col_idx + 1):
-            col_letter = ws_bl.cell(row=start_row_bl, column=col_idx).column_letter
-            max_length = 0
-            for row in range(start_row_bl, end_row_bl + 1):
-                cell = ws_bl.cell(row=row, column=col_idx)
-                try:
-                    val = str(cell.value) if cell.value is not None else ""
-                    max_length = max(max_length, len(val))
-                except Exception:
-                    pass
-        
-            # Add padding; wider for descriptive columns
-            if col_idx == start_col_idx:  # e.g., Zip ID
-                ws_bl.column_dimensions[col_letter].width = max(10, max_length + 2)
+            
+            # ---- Style data rows ----
+            for row in ws_bl.iter_rows(min_row=start_row_bl+1, max_row=end_row_bl,
+                                       min_col=start_col_idx, max_col=end_col_idx):
+                for cell in row:
+                    header_name = col_idx_to_name.get(cell.column, "")
+                    # Carrier-fill columns get special shading
+                    if header_name in carrier_fill_cols:
+                        cell.fill = carrier_fill
+                    else:
+                        cell.fill = data_fill
+            
+                    cell.alignment = Alignment(wrap_text=True, vertical="top", horizontal="left")
+                    cell.border = thin_border
+            
+            # ---- Autosize columns so text fits ----
+            for col_idx in range(start_col_idx, end_col_idx + 1):
+                col_letter = ws_bl.cell(row=start_row_bl, column=col_idx).column_letter
+                max_length = 0
+                for row in range(start_row_bl, end_row_bl + 1):
+                    cell = ws_bl.cell(row=row, column=col_idx)
+                    try:
+                        val = str(cell.value) if cell.value is not None else ""
+                        max_length = max(max_length, len(val))
+                    except Exception:
+                        pass
+            
+                # Add padding; wider for descriptive columns
+                if col_idx == start_col_idx:  # e.g., Zip ID
+                    ws_bl.column_dimensions[col_letter].width = max(10, max_length + 2)
+                else:
+                    ws_bl.column_dimensions[col_letter].width = max(15, max_length + 4)
+            
+            # ---- REMOVE ANY FORMATTING FROM COLUMN A ----
+            for cell in ws_bl["A:A"]:
+                cell.border = Border()
+                cell.fill = PatternFill(fill_type=None)
+                cell.font = Font(size=11)
+                cell.alignment = Alignment(horizontal="left", vertical="center")
+            
+            ws_bl.column_dimensions["A"].width = 2
+    
+            # ---- TAB 4: Location List ----
+            if not loc_df.empty:
+                loc_df.to_excel(writer, sheet_name="Company Location List", index=False)
             else:
-                ws_bl.column_dimensions[col_letter].width = max(15, max_length + 4)
-        
-        # ---- REMOVE ANY FORMATTING FROM COLUMN A ----
-        for cell in ws_bl["A:A"]:
-            cell.border = Border()
-            cell.fill = PatternFill(fill_type=None)
-            cell.font = Font(size=11)
-            cell.alignment = Alignment(horizontal="left", vertical="center")
-        
-        ws_bl.column_dimensions["A"].width = 2
-
-        # ---- TAB 4: Location List ----
-        if not loc_df.empty:
-            loc_df.to_excel(writer, sheet_name="Company Location List", index=False)
+                pd.DataFrame(
+                    columns=[
+                        "Location Name", "Street Address", "City", "State", "Zip",
+                        "Location Type", "Ledger Flag", "Platform"
+                    ]
+                ).to_excel(writer, sheet_name="Company Location List", index=False)
+    
+        rfp_buf.seek(0)
+    
+        st.download_button(
+            label="📥 Download RFP Template (Overview + Instructions + Contacts + Timeline + Bid Lanes + Locations)",
+            data=rfp_buf,
+            file_name="RFP_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    
+    
+    st.markdown("---")
+    st.subheader("✉️ Generate RFP Letters (by Carrier)")
+    st.markdown("""
+    Use negotiation letters when you **do not want a full RFP** for these lanes.
+    
+    This section will:
+      - Use lanes marked as **Letter** in the comparison logic
+      - Group lanes by carrier
+      - Show **unique lanes**, their **frequency**, **company vs benchmark cost**, and **% over benchmark**
+    Letters are best for:
+      - Smaller numbers of lanes
+      - One-off rate reviews
+      - Strategic/relationship-based negotiations
+      - Month-to-month rate comparisons to ensure carriers moving towards compliance with benchmark rates
+    """)
+    # Sender info can reuse the same as negotiation section, or separate:
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        rfp_sender_company = st.text_input("Your company name: Please enter the name of your company", value="Greif")
+    with col_b:
+        rfp_sender_name = st.text_input("Your name: Please enter your name to be included in signature line", value="Your Name")
+    with col_c:
+        rfp_sender_title = st.text_input("Your title: Please enter your title to be included in signature line", value="Procurement Manager")
+    
+    rfp_reply_by = st.text_input("RFP reply-by date: Please enter the deadline for vendors to respond", value="")
+    
+    # Default body text from your prompt
+    rfp_default_body = (
+        "Good afternoon,\n\n"
+        "We are reaching out as we are completing an RFP for our Freight spend. "
+        "The RFP that has been shared with you has a total {total_rfp_lanes} lanes. "
+        "We appreciate your partnership and would like to continue leveraging your company as a strategic carrier.\n\n "
+        "Of the lanes that are included in this RFP, please note there are {carrier_lane_count} "
+        "lanes you service that are currently above benchmark rates at "
+        "an average of {avg_over_pct} above benchmark. Our goal is to close the gap to benchmark "
+        "rates as much as possible and would appreciate your careful consideration as you complete this RFP\n\n"
+        "For your reference and ease, the top 10% lanes with the greatest delta to benchmark are listed below with a summary of remaining lanes. "
+        "If you would like further detail on the remaining lanes, please reach out.\n\n"
+        "Please submit your responses by {reply_by}."
+    )
+    
+    rfp_body_template = st.text_area(
+        "RFP letter body: Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP letters.",
+        value=rfp_default_body,
+        height=220,
+    )
+    
+    include_privfleet_in_rfp_letters = st.checkbox(
+        "Include PRIVATE FLEET in RFP letters",
+        value=False
+    )
+    
+    if st.button("Build RFP letters (ZIP)"):
+        if rfp_df.empty:
+            st.warning("No RFP lanes available to create letters.")
         else:
-            pd.DataFrame(
-                columns=[
-                    "Location Name", "Street Address", "City", "State", "Zip",
-                    "Location Type", "Ledger Flag", "Platform"
-                ]
-            ).to_excel(writer, sheet_name="Company Location List", index=False)
-
-    rfp_buf.seek(0)
-
-    st.download_button(
-        label="📥 Download RFP Template (Overview + Instructions + Contacts + Timeline + Bid Lanes + Locations)",
-        data=rfp_buf,
-        file_name="RFP_Template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
-
-
-st.markdown("---")
-st.subheader("✉️ Generate RFP Letters (by Carrier)")
-st.markdown("""
-Use negotiation letters when you **do not want a full RFP** for these lanes.
-
-This section will:
-  - Use lanes marked as **Letter** in the comparison logic
-  - Group lanes by carrier
-  - Show **unique lanes**, their **frequency**, **company vs benchmark cost**, and **% over benchmark**
-Letters are best for:
-  - Smaller numbers of lanes
-  - One-off rate reviews
-  - Strategic/relationship-based negotiations
-  - Month-to-month rate comparisons to ensure carriers moving towards compliance with benchmark rates
-""")
-# Sender info can reuse the same as negotiation section, or separate:
-col_a, col_b, col_c = st.columns(3)
-with col_a:
-    rfp_sender_company = st.text_input("Your company name: Please enter the name of your company", value="Greif")
-with col_b:
-    rfp_sender_name = st.text_input("Your name: Please enter your name to be included in signature line", value="Your Name")
-with col_c:
-    rfp_sender_title = st.text_input("Your title: Please enter your title to be included in signature line", value="Procurement Manager")
-
-rfp_reply_by = st.text_input("RFP reply-by date: Please enter the deadline for vendors to respond", value="")
-
-# Default body text from your prompt
-rfp_default_body = (
-    "Good afternoon,\n\n"
-    "We are reaching out as we are completing an RFP for our Freight spend. "
-    "The RFP that has been shared with you has a total {total_rfp_lanes} lanes. "
-    "We appreciate your partnership and would like to continue leveraging your company as a strategic carrier.\n\n "
-    "Of the lanes that are included in this RFP, please note there are {carrier_lane_count} "
-    "lanes you service that are currently above benchmark rates at "
-    "an average of {avg_over_pct} above benchmark. Our goal is to close the gap to benchmark "
-    "rates as much as possible and would appreciate your careful consideration as you complete this RFP\n\n"
-    "For your reference and ease, the top 10% lanes with the greatest delta to benchmark are listed below with a summary of remaining lanes. "
-    "If you would like further detail on the remaining lanes, please reach out.\n\n"
-    "Please submit your responses by {reply_by}."
-)
-
-rfp_body_template = st.text_area(
-    "RFP letter body: Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP letters.",
-    value=rfp_default_body,
-    height=220,
-)
-
-include_privfleet_in_rfp_letters = st.checkbox(
-    "Include PRIVATE FLEET in RFP letters",
-    value=False
-)
-
-if st.button("Build RFP letters (ZIP)"):
-    if rfp_df.empty:
-        st.warning("No RFP lanes available to create letters.")
+            zip_bytes = build_rfp_letters_zip(
+                rfp_df=rfp_df,
+                sender_company=rfp_sender_company,
+                sender_name=rfp_sender_name,
+                sender_title=rfp_sender_title,
+                reply_by=rfp_reply_by if rfp_reply_by else "the requested RFP due date",
+                rfp_body_template=rfp_body_template,
+                include_privfleet=include_privfleet_in_rfp_letters,
+            )
+            st.download_button(
+                label="⬇️ Download RFP letters (ZIP)",
+                data=zip_bytes,
+                file_name="rfp_letters.zip",
+                mime="application/zip"
+            )
+    
+    st.markdown("---")
+    st.subheader("✉️ Generate Negotiation Letters")
+    # ---- determine which lanes are actually in-scope for negotiation letters ----
+    neg_letter_df = letter_df[letter_df["action"] == "NEGOTIATE"].copy()
+    
+    if neg_letter_df.empty:
+        st.info(
+            "No lanes are currently flagged for negotiation letters. "
+            "Under the current rules and overrides, all lanes above benchmark "
+            "are either routed to the RFP or excluded."
+        )
     else:
-        zip_bytes = build_rfp_letters_zip(
-            rfp_df=rfp_df,
-            sender_company=rfp_sender_company,
-            sender_name=rfp_sender_name,
-            sender_title=rfp_sender_title,
-            reply_by=rfp_reply_by if rfp_reply_by else "the requested RFP due date",
-            rfp_body_template=rfp_body_template,
-            include_privfleet=include_privfleet_in_rfp_letters,
+        st.success(
+            f"{neg_letter_df['carrier_name'].nunique()} carriers and "
+            f"{neg_letter_df['_lane'].nunique()} unique lanes "
+            "are in scope for negotiation letters."
         )
-        st.download_button(
-            label="⬇️ Download RFP letters (ZIP)",
-            data=zip_bytes,
-            file_name="rfp_letters.zip",
-            mime="application/zip"
-        )
-
-st.markdown("---")
-st.subheader("✉️ Generate Negotiation Letters")
-# ---- determine which lanes are actually in-scope for negotiation letters ----
-neg_letter_df = letter_df[letter_df["action"] == "NEGOTIATE"].copy()
-
-if neg_letter_df.empty:
-    st.info(
-        "No lanes are currently flagged for negotiation letters. "
-        "Under the current rules and overrides, all lanes above benchmark "
-        "are either routed to the RFP or excluded."
-    )
-else:
-    st.success(
-        f"{neg_letter_df['carrier_name'].nunique()} carriers and "
-        f"{neg_letter_df['_lane'].nunique()} unique lanes "
-        "are in scope for negotiation letters."
-    )
-# Combine only Letter lanes (non-Private Fleet) + all other lanes lanes (if included)
-# Combine only Letter lanes (non-Private Fleet) + optional GREIF lanes
-combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
-# GREIF lanes will be added later inside the button when (and if) user checks the box
-
-col_a, col_b, col_c = st.columns(3)
-with col_a:
-    sender_company = st.text_input("Your company name: Please enter your company name", value="Greif")
-with col_b:
-    sender_name = st.text_input("Your name: Please enter your name which will be included in signature line", value="Your Name")
-with col_c:
-    sender_title = st.text_input("Your title: Please enter your title which will be included in signature line", value="Procurement Manager")
-
-col_d, col_e = st.columns(2)
-with col_d:
-    reply_by = st.text_input("Reply-by date (e.g., 2025-01-15):  Please enter the deadline for vendors to respond", value="")
-with col_e:
-    include_privfleet_in_letters = st.checkbox("Include PRIVATE FLEET in letters", value=False)
-
-# --- NEW: editable intro template ---
-default_intro = (
-    "We appreciate your service and would like to continue our partnership. "
-    "We have identified {num_lanes} lanes where the rates we are charged are "
-    "above market by an average of {avg_over_pct} and would like to review rates. "
-    "Please review and provide your best offer by {reply_by}."
-)
-
-st.markdown("**Negotiation letter body**")
-st.caption(
-    "Available placeholders: "
-    "`{num_lanes}` = number of lanes in the letter, "
-    "`{avg_over_pct}` = average %% above market, "
-    "`{reply_by}` = reply-by date."
-)
-
-letter_body_template = st.text_area(
-    "Negotiation letter body: Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template",
-    value=default_intro, 
-    height=120,
-)
-
-if st.button("Build negotiation letters (ZIP)"):
-
-    # Start from non-GREIF negotiation lanes
+    # Combine only Letter lanes (non-Private Fleet) + all other lanes lanes (if included)
+    # Combine only Letter lanes (non-Private Fleet) + optional GREIF lanes
     combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
-
-    # Optionally add GREIF lanes that are NEGOTIATE
-    if include_privfleet_in_letters and not gpf_export.empty:
-        greif_neg = gpf_export[gpf_export["action"] == "NEGOTIATE"].copy()
-        greif_neg["source"] = "GREIF"
-        combined_for_letters = pd.concat(
-            [combined_for_letters, greif_neg],
-            ignore_index=True,
-            sort=False,
-        )
-
-    if combined_for_letters.empty:
-        st.warning(
-            "No negotiation letters were generated because no lanes are "
-            "currently classified as Letter + NEGOTIATE."
-        )
-    else:
-        zip_bytes = build_letters_zip(
-            df_all=combined_for_letters,
-            include_privfleet=include_privfleet_in_letters,
-            sender_company=sender_company,
-            sender_name=sender_name,
-            sender_title=sender_title,
-            reply_by=reply_by if reply_by else "7 business days from receipt",
-            body_template=letter_body_template,
-        )
-        st.download_button(
-            label="⬇️ Download negotiation letters (ZIP)",
-            data=zip_bytes,
-            file_name="negotiation_letters.zip",
-            mime="application/zip"
-        )
+    # GREIF lanes will be added later inside the button when (and if) user checks the box
+    
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        sender_company = st.text_input("Your company name: Please enter your company name", value="Greif")
+    with col_b:
+        sender_name = st.text_input("Your name: Please enter your name which will be included in signature line", value="Your Name")
+    with col_c:
+        sender_title = st.text_input("Your title: Please enter your title which will be included in signature line", value="Procurement Manager")
+    
+    col_d, col_e = st.columns(2)
+    with col_d:
+        reply_by = st.text_input("Reply-by date (e.g., 2025-01-15):  Please enter the deadline for vendors to respond", value="")
+    with col_e:
+        include_privfleet_in_letters = st.checkbox("Include PRIVATE FLEET in letters", value=False)
+    
+    # --- NEW: editable intro template ---
+    default_intro = (
+        "We appreciate your service and would like to continue our partnership. "
+        "We have identified {num_lanes} lanes where the rates we are charged are "
+        "above market by an average of {avg_over_pct} and would like to review rates. "
+        "Please review and provide your best offer by {reply_by}."
+    )
+    
+    st.markdown("**Negotiation letter body**")
+    st.caption(
+        "Available placeholders: "
+        "`{num_lanes}` = number of lanes in the letter, "
+        "`{avg_over_pct}` = average %% above market, "
+        "`{reply_by}` = reply-by date."
+    )
+    
+    letter_body_template = st.text_area(
+        "Negotiation letter body: Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template",
+        value=default_intro, 
+        height=120,
+    )
+    
+    if st.button("Build negotiation letters (ZIP)"):
+    
+        # Start from non-GREIF negotiation lanes
+        combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
+    
+        # Optionally add GREIF lanes that are NEGOTIATE
+        if include_privfleet_in_letters and not gpf_export.empty:
+            greif_neg = gpf_export[gpf_export["action"] == "NEGOTIATE"].copy()
+            greif_neg["source"] = "GREIF"
+            combined_for_letters = pd.concat(
+                [combined_for_letters, greif_neg],
+                ignore_index=True,
+                sort=False,
+            )
+    
+        if combined_for_letters.empty:
+            st.warning(
+                "No negotiation letters were generated because no lanes are "
+                "currently classified as Letter + NEGOTIATE."
+            )
+        else:
+            zip_bytes = build_letters_zip(
+                df_all=combined_for_letters,
+                include_privfleet=include_privfleet_in_letters,
+                sender_company=sender_company,
+                sender_name=sender_name,
+                sender_title=sender_title,
+                reply_by=reply_by if reply_by else "7 business days from receipt",
+                body_template=letter_body_template,
+            )
+            st.download_button(
+                label="⬇️ Download negotiation letters (ZIP)",
+                data=zip_bytes,
+                file_name="negotiation_letters.zip",
+                mime="application/zip"
+            )
