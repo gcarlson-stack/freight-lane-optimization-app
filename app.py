@@ -333,40 +333,41 @@ if "excluded_detail_df" not in st.session_state:
 with st.sidebar:
     st.header("🧭 How to use this tool")
 
-    st.markdown(""**Please note: when the app is running, the website will "gray out." Please do not refresh the page 
-or make changes to any of the inputs while the page is loading.**
-
-**Step 1: Upload data**
-1. Upload **Company** and **Benchmark** files.
-2. Map the correct columns (lane, cost, carrier, mode).
-3. Add any **location, carrier, or mode exclusions**.
-
-**Step 2: Run comparison**
-- Click **Run comparison** to:
-  - Match lanes to benchmark
-  - Compute $ and % deltas
-  - Classify lanes into RFP vs Negotiation vs Excluded.
-
-**When to generate RFP Template + RFP Letters**
-- Use when you want to run a **formal bid event** across multiple lanes/carriers.
-- A formal bid event should be run no more than twice in a 12-month period, i.e., a formal bid 
-    should be run once every 6 months.
-- The **RFP Template** gives you:
-  - Tab 1: Overview & Instructions
-  - Tab 2: Bid Timeline
-  - Tab 3: Bid Lanes (with Market Rate)
-  - Tab 4: Location List
-- The **RFP Letters**:
-  - Summarize the lanes above benchmark for each carrier
-  - Show **top 10% lanes by variance** plus a summary for the rest.
-
-**When to generate Negotiation Letters**
-- Use when you **do not** want a full RFP, but instead:
-  - Target specific lanes for **direct rate negotiation**
-  - Send **custom letters** to carriers with lane-level detail and % over benchmark.
-- Negotiation letters can be used as a monthly check for lanes above benchmark. 
-    Letters can be sent once a month to vendors notifying vendors that lanes are 
-    still not within compliance of benchmark values."")
+    st.markdown("""
+    **Please note: when the app is running, the website will "gray out." Please do not refresh the page 
+        or make changes to any of the inputs while the page is loading.**
+        
+        **Step 1: Upload data**
+        1. Upload **Company** and **Benchmark** files.
+        2. Map the correct columns (lane, cost, carrier, mode).
+        3. Add any **location, carrier, or mode exclusions**.
+        
+        **Step 2: Run comparison**
+        - Click **Run comparison** to:
+          - Match lanes to benchmark
+          - Compute $ and % deltas
+          - Classify lanes into RFP vs Negotiation vs Excluded.
+        
+        **When to generate RFP Template + RFP Letters**
+        - Use when you want to run a **formal bid event** across multiple lanes/carriers.
+        - A formal bid event should be run no more than twice in a 12-month period, i.e., a formal bid 
+            should be run once every 6 months.
+        - The **RFP Template** gives you:
+          - Tab 1: Overview & Instructions
+          - Tab 2: Bid Timeline
+          - Tab 3: Bid Lanes (with Market Rate)
+          - Tab 4: Location List
+        - The **RFP Letters**:
+          - Summarize the lanes above benchmark for each carrier
+          - Show **top 10% lanes by variance** plus a summary for the rest.
+        
+        **When to generate Negotiation Letters**
+        - Use when you **do not** want a full RFP, but instead:
+          - Target specific lanes for **direct rate negotiation**
+          - Send **custom letters** to carriers with lane-level detail and % over benchmark.
+        - Negotiation letters can be used as a monthly check for lanes above benchmark. 
+            Letters can be sent once a month to vendors notifying vendors that lanes are 
+            still not within compliance of benchmark values.""")
 
     st.caption("Tip: Run the comparison first, review the RFP and Negotiation tabs, then generate the templates and letters.")
 
