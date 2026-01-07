@@ -337,12 +337,12 @@ with st.sidebar:
 **Please note: when the app is running, the website will "gray out." Please do not refresh the page 
 or make changes to any of the inputs while the page is loading.**
 
-**Step 1 – Upload data**
+**Step 1: Upload data**
 1. Upload **Company** and **Benchmark** files.
 2. Map the correct columns (lane, cost, carrier, mode).
 3. Add any **location, carrier, or mode exclusions**.
 
-**Step 2 – Run comparison**
+**Step 2: Run comparison**
 - Click **Run comparison** to:
   - Match lanes to benchmark
   - Compute $ and % deltas
