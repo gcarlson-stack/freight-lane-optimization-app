@@ -12,6 +12,55 @@ from docx.shared import Pt
 # =========================================================
 # Utilities (kept from your current code)
 # =========================================================
+def _step_status():
+    """Derive step completion from session_state."""
+    client_ok = st.session_state.get("client") is not None
+    bench_ok = st.session_state.get("bench") is not None
+    uploaded_ok = client_ok and bench_ok
+    results_ok = bool(st.session_state.get("results_ready", False))
+    return uploaded_ok, results_ok
+
+def render_progress_header(current_step: int):
+    """
+    current_step: 1..4 corresponding to Upload/Configure/Results/Exports
+    Renders a horizontal step indicator.
+    """
+    uploaded_ok, results_ok = _step_status()
+
+    steps = [
+        {"n": 1, "label": "Upload", "done": uploaded_ok},
+        {"n": 2, "label": "Configure", "done": uploaded_ok},  # configure is available once uploads exist
+        {"n": 3, "label": "Results", "done": results_ok},
+        {"n": 4, "label": "Exports", "done": results_ok},
+    ]
+
+    cols = st.columns([1, 0.3, 1, 0.3, 1, 0.3, 1])
+    col_idx = 0
+
+    for i, s in enumerate(steps):
+        # Step pill
+        with cols[col_idx]:
+            if s["done"]:
+                badge = "✔"
+            elif s["n"] == current_step:
+                badge = "●"
+            else:
+                badge = "○"
+
+            st.markdown(
+                f"**{badge} {s['n']}) {s['label']}**",
+                help="✔ complete • ● current • ○ not started"
+            )
+
+        # Arrow between steps
+        if i < len(steps) - 1:
+            with cols[col_idx + 1]:
+                st.markdown("<div style='text-align:center; padding-top:6px'>→</div>", unsafe_allow_html=True)
+
+        col_idx += 2
+
+    st.markdown("---")
+
 def next_step_hint(next_tab_label: str, *, disabled: bool = False, key: str):
     """
     Streamlit tabs cannot be programmatically selected. This adds a CTA and scroll-to-top.
@@ -400,6 +449,7 @@ tab_upload, tab_config, tab_results, tab_exports = st.tabs(
 # =========================================================
 
 with tab_upload:
+    render_progress_header(current_step=1)
     colL, colR = st.columns(2)
 
     with colL:
@@ -477,6 +527,7 @@ with tab_upload:
 # =========================================================
 
 with tab_config:
+    render_progress_header(current_step=2)
     st.subheader("Configure comparison")
 
     if (st.session_state.get("client") is None) and (st.session_state.get("bench") is None):
@@ -849,6 +900,7 @@ if submitted:
 # =========================================================
 
 with tab_results:
+    render_progress_header(current_step=3)
     st.subheader("Results")
 
     if not st.session_state["results_ready"]:
@@ -874,6 +926,59 @@ with tab_results:
         k4.metric("Benchmark match rate", f"{match_rate:.0%}")
         k5.metric("Excluded lanes", f"{excluded_lanes:,}")
 
+        st.markdown("---")
+        # =========================
+        # Decision Summary (Option 7)
+        # =========================
+        # Reuse what you already computed above:
+        # total_lanes, negotiate_lanes, total_savings, match_rate, excluded_lanes
+        
+        # Derive carrier impact + RFP/Letter counts (lightweight, no extra heavy compute)
+        out_tmp = out.copy()
+        out_tmp["lane_key_norm"] = out_tmp["_lane"].astype(str).str.strip().str.upper()
+        
+        override_letter_lanes = st.session_state.get("override_letter_lanes", override_letter_lanes if "override_letter_lanes" in locals() else set())
+        
+        def _classify_for_summary(row):
+            if row.get("action") != "NEGOTIATE":
+                return "None"
+            if pd.isna(row.get("benchmark_cost")) or row.get("benchmark_cost", 0) <= 0:
+                return "None"
+            if row["lane_key_norm"] in override_letter_lanes:
+                return "Letter"
+            return "RFP"
+        
+        out_tmp["lane_treatment"] = out_tmp.apply(_classify_for_summary, axis=1)
+        
+        rfp_count = int((out_tmp["lane_treatment"] == "RFP").sum())
+        letter_count = int((out_tmp["lane_treatment"] == "Letter").sum())
+        carriers_impacted = int(out_tmp.loc[out_tmp["action"] == "NEGOTIATE", "carrier_name"].nunique()) if "carrier_name" in out_tmp.columns else 0
+        
+        # A concise “what next” recommendation
+        if negotiate_lanes == 0:
+            next_reco = "No lanes are currently above benchmark under the selected settings. Consider relaxing exclusions or validating mappings."
+        elif rfp_count > 0 and letter_count > 0:
+            next_reco = "Review RFP lanes and Letter lanes, then proceed to Exports to build the workbook and communications."
+        elif rfp_count > 0:
+            next_reco = "Review RFP lanes, then proceed to Exports to build the RFP template and carrier letters."
+        else:
+            next_reco = "Review Letter lanes, then proceed to Exports to generate negotiation letters."
+        
+        st.markdown("### 📌 Decision Summary")
+        
+        m1, m2, m3, m4, m5 = st.columns(5)
+        m1.metric("Lanes analyzed", f"{total_lanes:,}")
+        m2.metric("Above benchmark", f"{negotiate_lanes:,}")
+        m3.metric("Savings potential (Δ>0)", f"${total_savings:,.0f}")
+        m4.metric("Benchmark match rate", f"{match_rate:.0%}")
+        m5.metric("Carriers impacted", f"{carriers_impacted:,}")
+        
+        st.caption(
+            f"RFP candidates: {rfp_count:,} • Letter candidates: {letter_count:,} • Excluded lanes: {excluded_lanes:,}"
+        )
+        
+        st.info(f"**Recommended next step:** {next_reco}")
+        
         st.markdown("---")
 
         # Treatment classification (kept from your logic)
@@ -948,6 +1053,7 @@ with tab_results:
 # =========================================================
 
 with tab_exports:
+    render_progress_header(current_step=4)
     st.subheader("Exports")
 
     if not st.session_state["results_ready"]:
