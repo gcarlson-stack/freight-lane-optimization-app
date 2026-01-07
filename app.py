@@ -282,20 +282,25 @@ st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
 st.title("🚚 FLO.ai")
 # ===== Upfront blurb (shows on every tab) =====
 st.markdown(
-    """
-**What this tool does**
-- Compares your Company lane costs to a Benchmark file to identify negotiation opportunities.
-- Supports optional matching by mode (TL/LTL) and optional exclusions (locations, carriers, modes).
-- Produces outputs for review (summary + lane tables) and exports (Excel workbook, RFP template, letters).
+### What this tool does
 
-**Recommended workflow**
-1) Upload Company + Benchmark
-2) Configure mappings and exclusions
-3) Run comparison
-4) Review Results
-5) Export workbook / templates / letters
-"""
-)
+This app compares your **company freight costs** to **benchmark rates**, then classifies each lane into:
+- **RFP lanes** – lanes that will be included in a broader bid event
+- **Negotiation lanes** – "non-vanilla" lanes or lanes excluded from RFP for specific reasons that 
+    will be handled via targeted vendor letters. Letters can also be used for monthly rate review, 
+    e.g., month-to-month negotiations with carriers to monitor variance to benchmark
+- **Excluded lanes** – filtered out due to location, mode, or carrier exclusions
+
+From this, you can:
+- Download a **full comparison workbook**
+- Generate an **RFP template** (Overview, Timeline, Bid Lanes, Locations)
+- Generate **RFP letters** to carriers participating in the bid
+- Generate **negotiation letters** for "non-vanilla" lanes flagged for direct rate review
+
+**Note: when the program is running or loading, the screen will "gray out" and/or icons of a person doing different sports will appear in the top righthand corner. Please do not refresh the page 
+or make changes to any of the inputs while the page is loading.**
+
+""")
 st.markdown("---")
 
 FIXED_EXCLUDE_LOCATIONS = [
@@ -326,31 +331,46 @@ if "excluded_detail_df" not in st.session_state:
 
 # ===== Sidebar (shows on every tab) =====
 with st.sidebar:
-    st.header("FLO.ai — Freight Lane Comparison")
+    st.header("🧭 How to use this tool")
 
-    st.markdown("### How to use")
-    st.markdown(
-        "- **Upload** Company + Benchmark files\n"
-        "- **Configure** mappings, mode handling, exclusions\n"
-        "- Click **Run comparison**\n"
-        "- Review **Results**\n"
-        "- Generate **Exports** (workbook / RFP template / letters)"
-    )
+    st.markdown("""
+**Please note: when the app is running, the website will "gray out." Please do not refresh the page 
+or make changes to any of the inputs while the page is loading.**
 
-    st.markdown("---")
-    st.markdown("### Tips")
-    st.markdown(
-        "- Start with required mappings only; expand Advanced options if needed.\n"
-        "- If match rate looks low, check lane key formatting and mode mapping.\n"
-        "- Keep exclusions tight; over-filtering can hide savings.\n"
-    )
+**Step 1 – Upload data**
+1. Upload **Company** and **Benchmark** files.
+2. Map the correct columns (lane, cost, carrier, mode).
+3. Add any **location, carrier, or mode exclusions**.
 
-    st.markdown("---")
-    st.markdown("### Inputs expected")
-    st.markdown(
-        "**Company file:** lane key, carrier, cost (and optional fuel)\n\n"
-        "**Benchmark file:** lane key, benchmark cost (and optional fuel %)\n"
-    )
+**Step 2 – Run comparison**
+- Click **Run comparison** to:
+  - Match lanes to benchmark
+  - Compute $ and % deltas
+  - Classify lanes into RFP vs Negotiation vs Excluded.
+
+**When to generate RFP Template + RFP Letters**
+- Use when you want to run a **formal bid event** across multiple lanes/carriers.
+- A formal bid event should be run no more than twice in a 12-month period, i.e., a formal bid 
+    should be run once every 6 months.
+- The **RFP Template** gives you:
+  - Tab 1: Overview & Instructions
+  - Tab 2: Bid Timeline
+  - Tab 3: Bid Lanes (with Market Rate)
+  - Tab 4: Location List
+- The **RFP Letters**:
+  - Summarize the lanes above benchmark for each carrier
+  - Show **top 10% lanes by variance** plus a summary for the rest.
+
+**When to generate Negotiation Letters**
+- Use when you **do not** want a full RFP, but instead:
+  - Target specific lanes for **direct rate negotiation**
+  - Send **custom letters** to carriers with lane-level detail and % over benchmark.
+- Negotiation letters can be used as a monthly check for lanes above benchmark. 
+    Letters can be sent once a month to vendors notifying vendors that lanes are 
+    still not within compliance of benchmark values.
+    """)
+
+    st.caption("Tip: Run the comparison first, review the RFP and Negotiation tabs, then generate the templates and letters.")
 
 # =========================================================
 # Tabs (1 + 10)
