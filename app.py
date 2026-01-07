@@ -334,9 +334,10 @@ with st.sidebar:
     st.header("🧭 How to use this tool")
 
     st.markdown("""
-    **Please note: when the app is running, the website will "gray out." Please do not refresh the page 
+        **Please note: when the app is running, the website will "gray out." Please do not refresh the page 
         or make changes to any of the inputs while the page is loading.**
-        
+    """)
+    st.markdown("
         **Step 1: Upload data**
         1. Upload **Company** and **Benchmark** files.
         2. Map the correct columns (lane, cost, carrier, mode).
@@ -367,7 +368,7 @@ with st.sidebar:
           - Send **custom letters** to carriers with lane-level detail and % over benchmark.
         - Negotiation letters can be used as a monthly check for lanes above benchmark. 
             Letters can be sent once a month to vendors notifying vendors that lanes are 
-            still not within compliance of benchmark values.""")
+            still not within compliance of benchmark values.")
 
     st.caption("Tip: Run the comparison first, review the RFP and Negotiation tabs, then generate the templates and letters.")
 
