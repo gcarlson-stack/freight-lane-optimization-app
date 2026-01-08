@@ -362,14 +362,25 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-# --- Edge-to-edge banner (works reliably) ---
 st.markdown(
     """
     <style>
-    /* Expand the banner container to full-bleed */
-    .flo-banner > div {
+    .flo-banner {
         margin-left: calc(-1 * var(--content-padding));
         margin-right: calc(-1 * var(--content-padding));
+        max-height: 240px;   /* adjust height here */
+        overflow: hidden;
+
+        /* 🔹 fade-out effect */
+        mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
+    }
+
+    .flo-banner img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
     }
     </style>
     """,
@@ -380,8 +391,6 @@ with st.container():
     st.markdown('<div class="flo-banner">', unsafe_allow_html=True)
     st.image("assets/flo_banner.png", use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("---")
 
 # =========================================================
 # Top-of-page: What this tool does + toggleable How-to
