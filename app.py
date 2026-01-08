@@ -341,7 +341,7 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-col_logo, col_title = st.columns([4, 8])
+col_logo, col_title = st.columns([4, 6])
 
 with col_logo:
     st.image("assets/flo_logo.png", width=200)
