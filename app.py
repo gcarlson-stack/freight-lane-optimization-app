@@ -1225,8 +1225,8 @@ with tab_exports:
             "RFP overview text (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
             value=(
                 "[Company name] is a [company type, e.g., manufacturer] of [product type] "
-                "and [services], supplying [example products] to customers worldwide. '
-                'The company also offers [additional products and services]. "
+                "and [services], supplying [example products] to customers worldwide. "
+                "The company also offers [additional products and services]. "
                 "[Company name] serves major industries including [served industries] "
                 "With a broad footprint and a strong commitment to [company values or goals] "
                 "[Company name] is a trusted partner for safe, reliable, and "
