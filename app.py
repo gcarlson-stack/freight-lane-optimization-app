@@ -938,6 +938,7 @@ with tab_results:
         summary_df = st.session_state["summary_df"]
         excluded_summary_df = st.session_state["excluded_summary_df"]
         excluded_detail_df = st.session_state["excluded_detail_df"]
+        override_letter_lanes = st.session_state.get("override_letter_lanes", set())
 
         # KPIs (8)
         total_lanes = int(out.shape[0]) if isinstance(out, pd.DataFrame) else 0
@@ -963,8 +964,6 @@ with tab_results:
         # Derive carrier impact + RFP/Letter counts (lightweight, no extra heavy compute)
         out_tmp = out.copy()
         out_tmp["lane_key_norm"] = out_tmp["_lane"].astype(str).str.strip().str.upper()
-        
-        override_letter_lanes = st.session_state.get("override_letter_lanes", override_letter_lanes if "override_letter_lanes" in locals() else set())
         
         def _classify_for_summary(row):
             if row.get("action") != "NEGOTIATE":
@@ -1043,10 +1042,11 @@ with tab_results:
             linehaul_savings = float(out.loc[neg_mask, "delta_linehaul"].sum(skipna=True))
             fuel_savings = float(out.loc[neg_mask, "delta_fuel"].sum(skipna=True))
 
-            with st.container():
-                st.write("**Savings scenarios**")
-                st.write(f"• Scenario 1 – Linehaul only: ${linehaul_savings:,.2f}")
-                st.write(f"• Scenario 2 – Linehaul + fuel: ${overall_total:,.2f} (includes ${fuel_savings:,.2f} fuel)")
+            st.markdown("#### Savings scenarios")
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Scenario 1 (Linehaul only)", f"${linehaul_savings:,.2f}")
+            c2.metric("Scenario 2 (Linehaul + fuel)", f"${overall_total:,.2f}")
+            c3.metric("Fuel component", f"${fuel_savings:,.2f}")
 
             st.dataframe(summary_df, use_container_width=True)
 
