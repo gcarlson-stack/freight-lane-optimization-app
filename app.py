@@ -362,48 +362,24 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-logo_b64 = img_to_base64("assets/flo_logo.png")
+st.markdown(
+    """
+    <style>
+    .flo-banner {
+        margin-left: calc(-1 * var(--content-padding));
+        margin-right: calc(-1 * var(--content-padding));
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 st.markdown(
-    f"""
-    <style>
-    .flo-header {{
-        display: flex;
-        align-items: center;
-        gap: 12px;          /* logo ↔ text spacing */
-        margin-top: 8px;
-        margin-bottom: 8px;
-    }}
-    .flo-header img {{
-        width: 210px;       /* logo size */
-        height: auto;
-        display: block;
-    }}
-    .flo-title {{
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-    }}
-    .flo-title h1 {{
-        margin: 0;
-        font-size: 34px;
-        line-height: 1.1;
-    }}
-    .flo-title p {{
-        margin: 4px 0 0 0;
-        font-size: 15px;
-        color: #6b7280;
-    }}
-    </style>
-
-    <div class="flo-header">
-        <img src="data:image/png;base64,{logo_b64}" alt="FLO.ai logo" />
-        <div class="flo-title">
-            <h1>FLO.ai</h1>
-            <p>Freight Lane Optimization</p>
-        </div>
+    """
+    <div class="flo-banner">
+        <img src="assets/flo_banner.png" style="width:100%; height:auto;" />
     </div>
-    <hr />
+    <hr>
     """,
     unsafe_allow_html=True
 )
