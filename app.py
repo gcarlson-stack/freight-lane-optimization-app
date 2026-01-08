@@ -17,6 +17,20 @@ def img_to_base64(path: str) -> str:
     with open(path, "rb") as f:
         return base64.b64encode(f.read()).decode("utf-8")
 
+
+def parse_tokens(raw: str) -> list[str]:
+    """Comma-separated tokens -> normalized list (uppercase, trimmed)."""
+    if not raw:
+        return []
+    return [t.strip().upper() for t in str(raw).split(",") if t.strip()]
+
+def is_private_fleet_carrier(carrier_name: object, tokens: list[str]) -> bool:
+    """True if carrier_name contains ANY token (case-insensitive)."""
+    if carrier_name is None:
+        return False
+    s = str(carrier_name).upper()
+    return any(tok in s for tok in tokens)
+
 def _step_status():
     """Derive step completion from session_state."""
     client_ok = st.session_state.get("client") is not None
@@ -309,8 +323,10 @@ def build_letter_docx(
 
 def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, sender_name: str,
                       sender_title: str, reply_by: str, body_template: str) -> bytes:
-    if not include_privfleet and "carrier_name" in df_all.columns:
-        df_all = df_all[df_all["carrier_name"].astype(str).str.upper() != "GREIF PRIVATE FLEET"]
+    private_fleet_tokens = st.session_state.get("private_fleet_tokens", ["PRIVATE FLEET"])
+    if not include_privfleet and "carrier_name" in df_all.columns and private_fleet_tokens:
+        mask_pf = df_all["carrier_name"].apply(lambda x: is_private_fleet_carrier(x, private_fleet_tokens))
+        df_all = df_all.loc[~mask_pf].copy()
 
     df_neg = df_all[df_all["action"] == "NEGOTIATE"].copy() if "action" in df_all.columns else df_all.iloc[0:0].copy()
     if df_neg.empty:
@@ -481,8 +497,12 @@ if "results_ready" not in st.session_state:
     st.session_state["results_ready"] = False
 if "out" not in st.session_state:
     st.session_state["out"] = pd.DataFrame()
-if "gpf_export" not in st.session_state:
-    st.session_state["gpf_export"] = pd.DataFrame()
+if "private_fleet_export" not in st.session_state:
+    st.session_state["private_fleet_export"] = pd.DataFrame()
+if "private_fleet_tokens_raw" not in st.session_state:
+    st.session_state["private_fleet_tokens_raw"] = "PRIVATE FLEET"
+if "private_fleet_tokens" not in st.session_state:
+    st.session_state["private_fleet_tokens"] = parse_tokens(st.session_state["private_fleet_tokens_raw"])
 if "summary_df" not in st.session_state:
     st.session_state["summary_df"] = pd.DataFrame()
 if "excluded_summary_df" not in st.session_state:
@@ -688,6 +708,14 @@ with tab_config:
         )
 
         st.markdown("---")
+        st.subheader("Private fleet identification")
+        private_fleet_tokens_raw = st.text_input(
+            "Private fleet carrier name tokens (comma-separated)",
+            value=st.session_state.get("private_fleet_tokens_raw", "PRIVATE FLEET"),
+            help="Any carrier name containing one of these tokens will be treated as Private Fleet (case-insensitive).",
+        )
+
+        st.markdown("---")
         st.subheader("RFP overrides")
         letter_override_raw = st.text_area(
             "Lane keys to treat as Vendor Letters instead of RFP (comma or newline separated)",
@@ -704,6 +732,8 @@ with tab_config:
     
     # Store overrides so Results/Exports can reliably access them
     st.session_state["override_letter_lanes"] = override_letter_lanes
+    st.session_state["private_fleet_tokens_raw"] = private_fleet_tokens_raw
+    st.session_state["private_fleet_tokens"] = parse_tokens(private_fleet_tokens_raw)
     
     next_step_hint("3) Results", disabled=(not st.session_state.get("results_ready", False)), key="next_config")
 
@@ -924,33 +954,57 @@ if submitted:
             "action", "origin_city", "origin_state", "dest_city", "dest_state"
         ]].sort_values("delta", ascending=False, na_position="last")
 
+        
         st.write("Preparing private fleet view")
-        gpf_export = client_keep[client_keep["carrier_name"].astype(str).str.upper() == "GREIF PRIVATE FLEET"].copy()
-        if gpf_export.empty:
-            gpf_export = pd.DataFrame(columns=["_lane", "carrier_name", "company_cost", "benchmark_cost", "delta", "action"])
-        else:
-            # Merge private fleet to benchmark agg (use same matching basis)
-            if use_mode_matching:
-                gpf_m = gpf_export.merge(bench_agg_df, how="left", on=["_lane", "mode"])
-            else:
-                gpf_m = gpf_export.merge(bench_agg_df, how="left", on=["_lane"])
-            gpf_m["benchmark_cost"] = gpf_m["benchmark_cost"].fillna(0.0)
-            gpf_m["delta"] = gpf_m["company_cost"] - gpf_m["benchmark_cost"]
-            gpf_m["action"] = gpf_m["delta"].apply(lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None")
-            gpf_export = gpf_m[["_lane", "carrier_name", "company_cost", "benchmark_cost", "delta", "action"]]
 
-        gpf_export = ensure_origin_dest(gpf_export)
+        # Identify private fleet rows using a configurable token list (case-insensitive contains match).
+        # Default token keeps backwards compatibility with "PRIVATE FLEET" naming conventions.
+        private_fleet_tokens = st.session_state.get("private_fleet_tokens", ["PRIVATE FLEET"])
+        is_private_fleet = (
+            client_keep["carrier_name"].apply(lambda x: is_private_fleet_carrier(x, private_fleet_tokens))
+            if ("carrier_name" in client_keep.columns and private_fleet_tokens)
+            else pd.Series(False, index=client_keep.index)
+        )
+
+        private_fleet_export = client_keep.loc[is_private_fleet].copy()
+
+        if private_fleet_export.empty:
+            private_fleet_export = pd.DataFrame(
+                columns=["_lane", "carrier_name", "company_cost", "benchmark_cost", "delta", "action"]
+            )
+        else:
+            # Merge private fleet lanes to benchmark aggregation using the same join keys as the main comparison
+            if use_mode_matching:
+                pf_m = private_fleet_export.merge(bench_agg_df, how="left", on=["_lane", "mode"])
+            else:
+                pf_m = private_fleet_export.merge(bench_agg_df, how="left", on=["_lane"])
+
+            pf_m["benchmark_cost"] = pf_m["benchmark_cost"].fillna(0.0)
+            pf_m["delta"] = pf_m["company_cost"] - pf_m["benchmark_cost"]
+            pf_m["action"] = pf_m["delta"].apply(lambda d: "NEGOTIATE" if pd.notna(d) and d > 0 else "None")
+
+            private_fleet_export = pf_m[["_lane", "carrier_name", "company_cost", "benchmark_cost", "delta", "action"]]
+
+        private_fleet_export = ensure_origin_dest(private_fleet_export)
+
 
         st.write("Building summary")
-        out_no_pf = out[out["carrier_name"].astype(str).str.upper() != "GREIF PRIVATE FLEET"].copy()
 
-        neg_mask_out = out_no_pf["action"] == "NEGOTIATE"
+        private_fleet_tokens = st.session_state.get("private_fleet_tokens", ["PRIVATE FLEET"])
+        if private_fleet_tokens and "carrier_name" in out.columns:
+            mask_pf_out = out["carrier_name"].apply(lambda x: is_private_fleet_carrier(x, private_fleet_tokens))
+        else:
+            mask_pf_out = pd.Series(False, index=out.index)
+
+        out_non_private_fleet = out.loc[~mask_pf_out].copy()
+
+        neg_mask_out = out_non_private_fleet["action"] == "NEGOTIATE"
         overall_count = int(neg_mask_out.sum())
-        overall_total = float(out_no_pf.loc[neg_mask_out, "delta"].sum(skipna=True))
+        overall_total = float(out_non_private_fleet.loc[neg_mask_out, "delta"].sum(skipna=True))
 
-        gpf_negotiate_count = int((gpf_export["action"] == "NEGOTIATE").sum()) if not gpf_export.empty else 0
-        gpf_total_delta = float(gpf_export.loc[gpf_export["action"] == "NEGOTIATE", "delta"].sum(skipna=True)) if not gpf_export.empty else 0.0
-        gpf_count = int(gpf_export.shape[0]) if isinstance(gpf_export, pd.DataFrame) else 0
+        pf_negotiate_count = int((private_fleet_export["action"] == "NEGOTIATE").sum()) if not private_fleet_export.empty else 0
+        pf_total_delta = float(private_fleet_export.loc[private_fleet_export["action"] == "NEGOTIATE", "delta"].sum(skipna=True)) if not private_fleet_export.empty else 0.0
+        pf_count = int(private_fleet_export.shape[0]) if isinstance(private_fleet_export, pd.DataFrame) else 0
 
         summary_df = pd.DataFrame([
             {
@@ -961,19 +1015,20 @@ if submitted:
             },
             {
                 "Segment": "PRIVATE FLEET",
-                "Negotiate_Lanes": gpf_negotiate_count,
-                "Total_Delta": gpf_total_delta,
-                "Summary_Text": f"SUMMARY: {gpf_count} lanes total; NEGOTIATE lanes delta ${gpf_total_delta:,.2f}."
+                "Negotiate_Lanes": pf_negotiate_count,
+                "Total_Delta": pf_total_delta,
+                "Summary_Text": f"SUMMARY: {pf_count} lanes total; NEGOTIATE lanes delta ${pf_total_delta:,.2f}."
             }
         ])
 
         # Persist results
-        st.session_state["out"] = out_no_pf
-        st.session_state["gpf_export"] = gpf_export
+        st.session_state["out"] = out_non_private_fleet
+        st.session_state["private_fleet_export"] = private_fleet_export
         st.session_state["summary_df"] = summary_df
         st.session_state["excluded_summary_df"] = excluded_summary_df
         st.session_state["excluded_detail_df"] = excluded_detail_df
         st.session_state["results_ready"] = True
+
 
         status.update(label="Comparison complete", state="complete")
 
@@ -989,7 +1044,7 @@ with tab_results:
         st.info("Run the comparison in the Configure tab to see results.")
     else:
         out = st.session_state["out"]
-        gpf_export = st.session_state["gpf_export"]
+        private_fleet_export = st.session_state["private_fleet_export"]
         summary_df = st.session_state["summary_df"]
         excluded_summary_df = st.session_state["excluded_summary_df"]
         excluded_detail_df = st.session_state["excluded_detail_df"]
@@ -1110,10 +1165,10 @@ with tab_results:
                 st.dataframe(letter_df.head(1000), use_container_width=True)
 
         with tab4:
-            if gpf_export.empty:
+            if private_fleet_export.empty:
                 st.info("No PRIVATE FLEET lanes found after exclusions.")
             else:
-                st.dataframe(gpf_export, use_container_width=True)
+                st.dataframe(private_fleet_export, use_container_width=True)
 
         with tab5:
             st.dataframe(excluded_summary_df, use_container_width=True)
@@ -1135,7 +1190,7 @@ with tab_exports:
         st.info("Run the comparison first to enable exports.")
     else:
         out = st.session_state["out"]
-        gpf_export = st.session_state["gpf_export"]
+        private_fleet_export = st.session_state["private_fleet_export"]
         summary_df = st.session_state["summary_df"]
         excluded_summary_df = st.session_state["excluded_summary_df"]
         excluded_detail_df = st.session_state["excluded_detail_df"]
@@ -1165,7 +1220,7 @@ with tab_exports:
                 out.to_excel(writer, sheet_name="All_NonPrivateFleet", index=False)
                 letter_df.to_excel(writer, sheet_name="Letter_Lanes", index=False)
                 rfp_df.to_excel(writer, sheet_name="RFP_Lanes", index=False)
-                gpf_export.to_excel(writer, sheet_name="Private_Fleet", index=False)
+                private_fleet_export.to_excel(writer, sheet_name="Private_Fleet", index=False)
                 summary_df.to_excel(writer, sheet_name="Summary", index=False)
                 excluded_summary_df.to_excel(writer, sheet_name="Excluded_Summary", index=False)
                 excluded_detail_df.to_excel(writer, sheet_name="Excluded_Detail", index=False)
@@ -1636,13 +1691,13 @@ with tab_exports:
         )
         
         if st.button("Build negotiation letters (ZIP)", key="build_neg_letters"):
-            combined_for_letters = neg_letter_df.assign(source="NON_GREIF")
+            combined_for_letters = neg_letter_df.assign(source="NON_PRIVATE_FLEET")
         
-            if include_privfleet_in_letters and isinstance(gpf_export, pd.DataFrame) and (not gpf_export.empty):
-                greif_neg = gpf_export[gpf_export["action"] == "NEGOTIATE"].copy()
-                if not greif_neg.empty:
-                    greif_neg["source"] = "GREIF"
-                    combined_for_letters = pd.concat([combined_for_letters, greif_neg], ignore_index=True, sort=False)
+            if include_privfleet_in_letters and isinstance(private_fleet_export, pd.DataFrame) and (not private_fleet_export.empty):
+                private_fleet_neg = private_fleet_export[private_fleet_export["action"] == "NEGOTIATE"].copy()
+                if not private_fleet_neg.empty:
+                    private_fleet_neg["source"] = "PRIVATE_FLEET"
+                    combined_for_letters = pd.concat([combined_for_letters, private_fleet_neg], ignore_index=True, sort=False)
         
             if combined_for_letters.empty:
                 st.warning("No negotiation letters were generated because no lanes are currently classified as Letter + NEGOTIATE.")
