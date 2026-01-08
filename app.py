@@ -685,6 +685,12 @@ if submitted:
         client_has_mode = (mode_col_client not in ("<None>", None, "") and mode_col_client in df_client.columns)
         bench_has_mode = (bench_mode_col not in ("<None>", None, "") and bench_mode_col in df_bench.columns)
         use_mode_matching = bool(match_by_mode and client_has_mode and bench_has_mode)
+        # ---------------------------------------------------------
+        # SAFETY RULE:
+        # If benchmark has no mode column, exclude LTL from company
+        # to avoid false TL vs LTL comparisons
+        # ---------------------------------------------------------
+        auto_exclude_ltl_due_to_benchmark = not bench_has_mode
 
         st.write("Normalizing lanes")
         df_client = df_client.copy()
@@ -722,12 +728,17 @@ if submitted:
                 })
             )
 
-        if use_mode_matching:
+        # Always normalize company mode if column exists
+        if client_has_mode:
             df_client["_mode"] = norm_mode(df_client[mode_col_client])
+        else:
+            df_client["_mode"] = "UNKNOWN"
+        
+        # Only normalize benchmark mode if available
+        if bench_has_mode:
             df_bench["_mode"] = norm_mode(df_bench[bench_mode_col])
         else:
-            df_client["_mode"] = "DEFAULT"
-            df_bench["_mode"] = "DEFAULT"
+            df_bench["_mode"] = "UNKNOWN"
 
         st.write("Computing costs")
         df_client["company_linehaul"] = pd.to_numeric(df_client[company_cost_col], errors="coerce")
@@ -792,11 +803,27 @@ if submitted:
             carriers_list = [c.strip().upper() for c in extra_carriers.split(",") if c.strip()]
             client_keep = client_keep[~client_keep["carrier_name"].astype(str).str.upper().isin(carriers_list)]
 
-        # Mode exclusions
-        exclude_modes = [m.strip().upper() for m in str(exclude_modes_raw).split(",") if m.strip()]
+        # Mode exclusions (explicit + automatic)
+        exclude_modes = {m.strip().upper() for m in str(exclude_modes_raw).split(",") if m.strip()}
+        
+        # Auto-exclude LTL if benchmark has no mode info
+        if auto_exclude_ltl_due_to_benchmark:
+            exclude_modes.add("LTL")
+        
         if exclude_modes:
             if "mode" in client_keep.columns:
-                client_keep = client_keep[~client_keep["mode"].astype(str).str.upper().isin(exclude_modes)]
+                client_keep = client_keep[
+                    ~client_keep["mode"].astype(str).str.upper().isin(exclude_modes)
+                ]
+        # ---------------------------------------------------------
+        # User-facing explanation for automatic LTL exclusion
+        # ---------------------------------------------------------
+        if auto_exclude_ltl_due_to_benchmark:
+            st.info(
+                "ℹ️ **LTL lanes were automatically excluded** because the benchmark file "
+                "does not contain a usable mode column. "
+                "This prevents TL/LTL mismatches and false savings comparisons."
+            )
 
         st.write("Aggregating benchmark and merging")
         bench_keep = df_bench[["_lane", "_mode", "benchmark_linehaul", "benchmark_fuel_cost", "benchmark_cost"]].rename(columns={"_mode": "mode"})
@@ -1018,8 +1045,10 @@ with tab_results:
 
             st.markdown(
                 f"- **Scenario 1 – Linehaul only:** ${linehaul_savings:,.2f}\n"
-                f"- **Scenario 2 – Linehaul + fuel:** ${overall_total:,.2f} (includes ${fuel_savings:,.2f} fuel)"
+                f"- **Scenario 2 – Linehaul + fuel:** ${overall_total:,.2f} "
+                f"(includes ${fuel_savings:,.2f} fuel)"
             )
+
             st.dataframe(summary_df, use_container_width=True)
 
         with tab2:
