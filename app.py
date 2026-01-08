@@ -341,57 +341,66 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-with st.sidebar:
-    st.header("FLO.ai")
+st.title("FLO.ai")
+# =========================================================
+# Top-of-page: What this tool does + toggleable How-to
+# =========================================================
 
-    st.markdown("### What this tool does")
+st.markdown("### What this tool does")
+st.markdown(
+    "- Compares **Company lane costs** to **Benchmark market rates**\n"
+    "- Computes **$ and % deltas** to identify savings opportunities\n"
+    "- Classifies lanes into **RFP**, **Negotiation Letters**, or **Excluded**\n"
+    "- Generates **Excel outputs**, **RFP templates**, and **carrier letters**"
+)
+
+# ---- Toggle state for how-to ----
+if "show_howto" not in st.session_state:
+    st.session_state["show_howto"] = False
+
+# Toggle button
+toggle_label = "Show: How to use this tool" if not st.session_state["show_howto"] else "Hide: How to use this tool"
+if st.button(toggle_label, key="toggle_howto_top"):
+    st.session_state["show_howto"] = not st.session_state["show_howto"]
+    st.rerun()
+
+# Conditionally render how-to content
+if st.session_state["show_howto"]:
+    st.markdown("---")
+    st.markdown("### How to use this tool")
+
     st.markdown(
-        "- Compares Company lane costs to Benchmark market rates\n"
-        "- Computes $ and % deltas\n"
-        "- Classifies lanes into RFP vs Letters vs Excluded\n"
-        "- Generates exports (workbook, RFP template, letters)"
+        "**Please note:** When the app is running, the page will temporarily gray out. "
+        "Do not refresh or change inputs while processing.\n\n"
+
+        "**Step 1: Upload data**\n"
+        "1. Upload **Company** and **Benchmark** files\n"
+        "2. Map the correct columns (lane, cost, carrier, mode)\n"
+        "3. Add any **location, carrier, or mode exclusions**\n\n"
+
+        "**Step 2: Run comparison**\n"
+        "- Click **Run comparison** to:\n"
+        "  - Match lanes to benchmark\n"
+        "  - Compute $ and % deltas\n"
+        "  - Classify lanes into RFP vs Negotiation vs Excluded\n\n"
+
+        "**When to generate RFP Template + RFP Letters**\n"
+        "- Use when running a **formal bid event** across multiple lanes/carriers\n"
+        "- Recommended no more than **twice per year**\n"
+        "- RFP Template includes Overview, Timeline, Bid Lanes, Location List\n"
+        "- RFP Letters summarize above-benchmark lanes and highlight top 10% variances\n\n"
+
+        "**When to generate Negotiation Letters**\n"
+        "- Use when you **do not** want a full RFP\n"
+        "- Target specific lanes for **direct rate negotiation**\n"
+        "- Useful as a **monthly compliance check** for above-benchmark lanes"
     )
 
-    st.markdown("---")
+    st.caption(
+        "Tip: Upload → Configure → Run comparison → Review Results → Generate Exports"
+    )
 
-    # ---- Toggle state ----
-    if "show_howto" not in st.session_state:
-        st.session_state["show_howto"] = False
-
-    # Button to toggle visibility
-    label = "Show: How to use this tool" if not st.session_state["show_howto"] else "Hide: How to use this tool"
-    if st.button(label, use_container_width=True, key="toggle_howto"):
-        st.session_state["show_howto"] = not st.session_state["show_howto"]
-        st.rerun()
-
-    # Conditionally render the how-to block
-    if st.session_state["show_howto"]:
-        st.markdown("### How to use this tool")
-        st.markdown(
-            "**Please note:** When the app is running, the website will gray out. "
-            "Do not refresh the page or change inputs while the page is loading.\n\n"
-            "**Step 1: Upload data**\n"
-            "1. Upload **Company** and **Benchmark** files.\n"
-            "2. Map the correct columns (lane, cost, carrier, mode).\n"
-            "3. Add any **location, carrier, or mode exclusions**.\n\n"
-            "**Step 2: Run comparison**\n"
-            "- Click **Run comparison** to:\n"
-            "  - Match lanes to benchmark\n"
-            "  - Compute $ and % deltas\n"
-            "  - Classify lanes into RFP vs Negotiation vs Excluded\n\n"
-            "**When to generate RFP Template + RFP Letters**\n"
-            "- Use when you want to run a **formal bid event**.\n"
-            "- The RFP Template includes Overview, Timeline, Bid Lanes, Location List.\n"
-            "- RFP Letters summarize above-benchmark lanes and show top 10% variances.\n\n"
-            "**When to generate Negotiation Letters**\n"
-            "- Use when you **do not** want a full RFP.\n"
-            "- Target specific lanes for **direct rate negotiation**.\n"
-            "- Can be used as a monthly compliance check."
-        )
-
-        st.caption(
-            "Tip: Upload → Configure → Run comparison → Review Results → Export templates and letters."
-        )
+st.markdown("---")
 
 FIXED_EXCLUDE_LOCATIONS = [
     "GLADSTONEVA", "FITCHBURGMA", "MORGAN HILLCA", "MASSILLONOH", "MERCEDCA",
