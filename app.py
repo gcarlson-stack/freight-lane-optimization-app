@@ -341,18 +341,18 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-col_logo, col_title = st.columns([3, 7])
+col_logo, col_title = st.columns([4, 8])
 
 with col_logo:
-    st.image("assets/flo_logo.png", width=180)
+    st.image("assets/flo_logo.png", width=200)
 
 with col_title:
     st.markdown(
-        "<h1 style='margin-bottom: 4px;'>FLO.ai</h1>",
+        "<h1 style='margin: 18px 0 2px 0;'>FLO.ai</h1>",
         unsafe_allow_html=True
     )
     st.markdown(
-        "<p style='font-size:16px; color: #6b7280;'>Freight Lane Optimization</p>",
+        "<p style='font-size:15px; color:#6b7280; margin:0;'>Freight Lane Optimization</p>",
         unsafe_allow_html=True
     )
 
