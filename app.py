@@ -348,10 +348,21 @@ st.title("FLO.ai")
 
 st.markdown("### What this tool does")
 st.markdown(
-    "- Compares **Company lane costs** to **Benchmark market rates**\n"
-    "- Computes **$ and % deltas** to identify savings opportunities\n"
-    "- Classifies lanes into **RFP**, **Negotiation Letters**, or **Excluded**\n"
-    "- Generates **Excel outputs**, **RFP templates**, and **carrier letters**"
+    ""This app compares your **company freight costs** to **benchmark rates**, then classifies each lane into:
+    - **RFP lanes**: lanes that will be included in a broader bid event
+    - **Negotiation lanes**: "non-vanilla" lanes or lanes excluded from RFP for specific reasons that
+        will be handled via targeted vendor letters. Letters can also be used for monthly rate review,
+        e.g., month-to-month negotiations with carriers to monitor variance to benchmark
+    - **Excluded lanes**: filtered out due to location, mode, or carrier exclusions
+    
+    From this, you can:
+    - Download a **full comparison workbook**
+    - Generate an **RFP template** (Overview, Timeline, Bid Lanes, Locations)
+    - Generate **RFP letters** to carriers participating in the bid
+    - Generate **negotiation letters** for "non-vanilla" lanes flagged for direct rate review
+    
+    **Note: when the program is running or loading, the screen will "gray out" and/or icons of a person doing different sports will appear in the top righthand corner. Please do not refresh the page 
+    or make changes to any of the inputs while the page is loading.**""
 )
 
 # ---- Toggle state for how-to ----
