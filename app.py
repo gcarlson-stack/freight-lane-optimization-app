@@ -341,7 +341,18 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-st.title("FLO.ai")
+col_logo, col_title = st.columns([1, 6])
+
+with col_logo:
+    st.image("assets/flo_logo.png", width=120)
+
+with col_title:
+    st.markdown(
+        "<h2 style='margin-bottom: 0;'>FLO.ai</h2>",
+        unsafe_allow_html=True
+    )
+    st.caption("Freight Lane Optimization")
+
 # =========================================================
 # Top-of-page: What this tool does + toggleable How-to
 # =========================================================
