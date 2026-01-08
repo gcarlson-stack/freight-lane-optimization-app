@@ -928,7 +928,7 @@ if submitted:
 
 with tab_results:
     render_progress_header(current_step=3)
-    st.subheader("Results")
+    st.header("### 📌 Decision Summary")
 
     if not st.session_state["results_ready"]:
         st.info("Run the comparison in the Configure tab to see results.")
@@ -941,6 +941,7 @@ with tab_results:
         override_letter_lanes = st.session_state.get("override_letter_lanes", set())
 
         # KPIs (8)
+        carriers_impacted = int(out.loc[out["action"] == "NEGOTIATE", "carrier_name"].nunique()) if "carrier_name" in out.columns else 0
         total_lanes = int(out.shape[0]) if isinstance(out, pd.DataFrame) else 0
         negotiate_lanes = int((out["action"] == "NEGOTIATE").sum()) if total_lanes else 0
         total_savings = float(out.loc[out["action"] == "NEGOTIATE", "delta"].clip(lower=0).sum(skipna=True)) if total_lanes else 0.0
@@ -948,10 +949,10 @@ with tab_results:
         excluded_lanes = int(excluded_detail_df.shape[0]) if isinstance(excluded_detail_df, pd.DataFrame) else 0
 
         k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric("Total lanes", f"{total_lanes:,}")
-        k2.metric("Negotiate lanes", f"{negotiate_lanes:,}")
-        k3.metric("Total savings (Δ>0)", f"${total_savings:,.0f}")
-        k4.metric("Benchmark match rate", f"{match_rate:.0%}")
+        k1.metric("Lanes analyzed", f"{total_lanes:,}")
+        k2.metric("Above benchmark", f"{negotiate_lanes:,}")
+        k3.metric("Savings potential (Δ>0)", f"${total_savings:,.0f}")
+        k4.metric("Carriers impacted", f"{carriers_impacted:,}")
         k5.metric("Excluded lanes", f"{excluded_lanes:,}")
 
         st.markdown("---")
@@ -989,16 +990,7 @@ with tab_results:
             next_reco = "Review RFP lanes, then proceed to Exports to build the RFP template and carrier letters."
         else:
             next_reco = "Review Letter lanes, then proceed to Exports to generate negotiation letters."
-        
-        st.markdown("### 📌 Decision Summary")
-        
-        m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Lanes analyzed", f"{total_lanes:,}")
-        m2.metric("Above benchmark", f"{negotiate_lanes:,}")
-        m3.metric("Savings potential (Δ>0)", f"${total_savings:,.0f}")
-        m4.metric("Benchmark match rate", f"{match_rate:.0%}")
-        m5.metric("Carriers impacted", f"{carriers_impacted:,}")
-        
+                
         st.caption(
             f"RFP candidates: {rfp_count:,} • Letter candidates: {letter_count:,} • Excluded lanes: {excluded_lanes:,}"
         )
