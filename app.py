@@ -341,22 +341,48 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-col_logo, col_title = st.columns([4, 6])
+st.markdown(
+    """
+    <style>
+    .flo-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;            /* controls logo ↔ text distance */
+        margin-top: 8px;
+        margin-bottom: 8px;
+    }
+    .flo-header img {
+        width: 200px;        /* logo size */
+        height: auto;
+    }
+    .flo-title {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    .flo-title h1 {
+        margin: 0;
+        font-size: 34px;
+        line-height: 1.1;
+    }
+    .flo-title p {
+        margin: 4px 0 0 0;
+        font-size: 15px;
+        color: #6b7280;
+    }
+    </style>
 
-with col_logo:
-    st.image("assets/flo_logo.png", width=200)
-
-with col_title:
-    st.markdown(
-        "<h1 style='margin: 18px 0 2px 0;'>FLO.ai</h1>",
-        unsafe_allow_html=True
-    )
-    st.markdown(
-        "<p style='font-size:15px; color:#6b7280; margin:0;'>Freight Lane Optimization</p>",
-        unsafe_allow_html=True
-    )
-
-st.markdown("---")
+    <div class="flo-header">
+        <img src="assets/flo_logo.png" alt="FLO.ai logo">
+        <div class="flo-title">
+            <h1>FLO.ai</h1>
+            <p>Freight Lane Optimization</p>
+        </div>
+    </div>
+    <hr>
+    """,
+    unsafe_allow_html=True
+)
 
 # =========================================================
 # Top-of-page: What this tool does + toggleable How-to
