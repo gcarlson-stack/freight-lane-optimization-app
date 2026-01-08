@@ -928,7 +928,7 @@ if submitted:
 
 with tab_results:
     render_progress_header(current_step=3)
-    st.header("### 📌 Decision Summary")
+    st.header("📌 Decision Summary")
 
     if not st.session_state["results_ready"]:
         st.info("Run the comparison in the Configure tab to see results.")
