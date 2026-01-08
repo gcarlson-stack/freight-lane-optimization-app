@@ -341,29 +341,57 @@ def build_letters_zip(df_all, include_privfleet: bool, sender_company: str, send
 # =========================================================
 
 st.set_page_config(page_title="Freight Lane Comparison", layout="wide")
-st.title("🚚 FLO.ai")
-# ===== Upfront blurb (shows on every tab) =====
-st.markdown("""
-### What this tool does
+with st.sidebar:
+    st.header("FLO.ai")
 
-This app compares your **company freight costs** to **benchmark rates**, then classifies each lane into:
-- **RFP lanes**: lanes that will be included in a broader bid event
-- **Negotiation lanes**: "non-vanilla" lanes or lanes excluded from RFP for specific reasons that 
-    will be handled via targeted vendor letters. Letters can also be used for monthly rate review, 
-    e.g., month-to-month negotiations with carriers to monitor variance to benchmark
-- **Excluded lanes**: filtered out due to location, mode, or carrier exclusions
+    st.markdown("### What this tool does")
+    st.markdown(
+        "- Compares Company lane costs to Benchmark market rates\n"
+        "- Computes $ and % deltas\n"
+        "- Classifies lanes into RFP vs Letters vs Excluded\n"
+        "- Generates exports (workbook, RFP template, letters)"
+    )
 
-From this, you can:
-- Download a **full comparison workbook**
-- Generate an **RFP template** (Overview, Timeline, Bid Lanes, Locations)
-- Generate **RFP letters** to carriers participating in the bid
-- Generate **negotiation letters** for "non-vanilla" lanes flagged for direct rate review
+    st.markdown("---")
 
-**Note: when the program is running or loading, the screen will "gray out" and/or icons of a person doing different sports will appear in the top righthand corner. Please do not refresh the page 
-or make changes to any of the inputs while the page is loading.**
+    # ---- Toggle state ----
+    if "show_howto" not in st.session_state:
+        st.session_state["show_howto"] = False
 
-""")
-st.markdown("---")
+    # Button to toggle visibility
+    label = "Show: How to use this tool" if not st.session_state["show_howto"] else "Hide: How to use this tool"
+    if st.button(label, use_container_width=True, key="toggle_howto"):
+        st.session_state["show_howto"] = not st.session_state["show_howto"]
+        st.rerun()
+
+    # Conditionally render the how-to block
+    if st.session_state["show_howto"]:
+        st.markdown("### How to use this tool")
+        st.markdown(
+            "**Please note:** When the app is running, the website will gray out. "
+            "Do not refresh the page or change inputs while the page is loading.\n\n"
+            "**Step 1: Upload data**\n"
+            "1. Upload **Company** and **Benchmark** files.\n"
+            "2. Map the correct columns (lane, cost, carrier, mode).\n"
+            "3. Add any **location, carrier, or mode exclusions**.\n\n"
+            "**Step 2: Run comparison**\n"
+            "- Click **Run comparison** to:\n"
+            "  - Match lanes to benchmark\n"
+            "  - Compute $ and % deltas\n"
+            "  - Classify lanes into RFP vs Negotiation vs Excluded\n\n"
+            "**When to generate RFP Template + RFP Letters**\n"
+            "- Use when you want to run a **formal bid event**.\n"
+            "- The RFP Template includes Overview, Timeline, Bid Lanes, Location List.\n"
+            "- RFP Letters summarize above-benchmark lanes and show top 10% variances.\n\n"
+            "**When to generate Negotiation Letters**\n"
+            "- Use when you **do not** want a full RFP.\n"
+            "- Target specific lanes for **direct rate negotiation**.\n"
+            "- Can be used as a monthly compliance check."
+        )
+
+        st.caption(
+            "Tip: Upload → Configure → Run comparison → Review Results → Export templates and letters."
+        )
 
 FIXED_EXCLUDE_LOCATIONS = [
     "GLADSTONEVA", "FITCHBURGMA", "MORGAN HILLCA", "MASSILLONOH", "MERCEDCA",
@@ -386,54 +414,6 @@ if "excluded_summary_df" not in st.session_state:
     st.session_state["excluded_summary_df"] = pd.DataFrame(columns=["Excluded_Location", "Count"])
 if "excluded_detail_df" not in st.session_state:
     st.session_state["excluded_detail_df"] = pd.DataFrame(columns=["_lane", "carrier_name", "excluded_matches"])
-
-# =========================================================
-# Sidebar (keep concise)
-# =========================================================
-
-# ===== Sidebar (shows on every tab) =====
-with st.sidebar:
-    st.header("🧭 How to use this tool")
-
-    st.markdown("""
-        **Please note: when the app is running, the website will "gray out." Please do not refresh the page 
-        or make changes to any of the inputs while the page is loading.**
-    """)
-    st.markdown("""
-        **Step 1: Upload data**
-        1. Upload **Company** and **Benchmark** files.
-        2. Map the correct columns (lane, cost, carrier, mode).
-        3. Add any **location, carrier, or mode exclusions**.
-        
-        **Step 2: Run comparison**
-        - Click **Run comparison** to:
-          - Match lanes to benchmark
-          - Compute $ and % deltas
-          - Classify lanes into RFP vs Negotiation vs Excluded.
-        
-        **When to generate RFP Template + RFP Letters**
-        - Use when you want to run a **formal bid event** across multiple lanes/carriers.
-        - A formal bid event should be run no more than twice in a 12-month period, i.e., a formal bid 
-            should be run once every 6 months.
-        - The **RFP Template** gives you:
-          - Tab 1: Overview & Instructions
-          - Tab 2: Bid Timeline
-          - Tab 3: Bid Lanes (with Market Rate)
-          - Tab 4: Location List
-        - The **RFP Letters**:
-          - Summarize the lanes above benchmark for each carrier
-          - Show **top 10% lanes by variance** plus a summary for the rest.
-        
-        **When to generate Negotiation Letters**
-        - Use when you **do not** want a full RFP, but instead:
-          - Target specific lanes for **direct rate negotiation**
-          - Send **custom letters** to carriers with lane-level detail and % over benchmark.
-        - Negotiation letters can be used as a monthly check for lanes above benchmark. 
-            Letters can be sent once a month to vendors notifying vendors that lanes are 
-            still not within compliance of benchmark values.
-    """)
-
-    st.caption("Tip: Run the comparison first, review the RFP and Negotiation tabs, then generate the templates and letters.")
 
 # =========================================================
 # Tabs (1 + 10)
