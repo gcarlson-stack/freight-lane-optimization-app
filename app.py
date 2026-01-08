@@ -1224,17 +1224,13 @@ with tab_exports:
         overview_text = st.text_area(
             "RFP overview text (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
             value=(
-                "Greif, Inc. is a global manufacturer of industrial packaging products "
-                "and services, supplying fiber, steel, and plastic drums; intermediate "
-                "bulk containers; corrugated and paper-based packaging; and containerboard "
-                "to customers worldwide. The company also offers packaging accessories, "
-                "transit protection products, and a range of reconditioning, recycling, "
-                "and supply-chain services that support Circular Economy and sustainability initiatives. "
-                "Greif serves major industries including chemicals, pharmaceuticals, agriculture, "
-                "food and beverage, petroleum, and general manufacturing. With a broad production "
-                "footprint and a strong commitment to operational excellence, product quality, and "
-                "environmental stewardship, Greif is a trusted partner for safe, reliable, and "
-                "efficient packaging solutions. Founded in 1877, the company is headquartered in Delaware, Ohio."
+                "[Company name] is a [company type, e.g., manufacturer] of [product type] "
+                "and [services], supplying [example products] to customers worldwide. '
+                'The company also offers [additional products and services]. "
+                "[Company name] serves major industries including [served industries] "
+                "With a broad footprint and a strong commitment to [company values or goals] "
+                "[Company name] is a trusted partner for safe, reliable, and "
+                "efficient [product] solutions. Founded in [year], the company is headquartered in [location]."
             ),
             help="This text will populate the Overview tab in the RFP."
         )
@@ -1249,7 +1245,7 @@ with tab_exports:
         instructions_text = st.text_area(
             "RFP Instructions (Tab 1): Please **revise the text below** to be specific to your company. Any edits you make here will be reflected in the RFP template.",
             value=(
-                "Greif is continously looking to improve our ways of working and unlock efficiencies across our Supply Chain. "
+                "[Company name] is continously looking to improve our ways of working and unlock efficiencies across our Supply Chain. "
                 "Therefore, we are leveraging our volume and knowledge of market rates to complete a bid for several of our lanes and "
                 "request that your company participate.\n\n"
                 "In this document you will find three tabs:\n"
@@ -1532,7 +1528,7 @@ with tab_exports:
         
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            rfp_sender_company = st.text_input("Your company name", value="Greif", key="rfp_sender_company")
+            rfp_sender_company = st.text_input("Your company name", value="Your company name", key="rfp_sender_company")
         with col_b:
             rfp_sender_name = st.text_input("Your name", value="Your Name", key="rfp_sender_name")
         with col_c:
@@ -1602,7 +1598,7 @@ with tab_exports:
         
         col_a, col_b, col_c = st.columns(3)
         with col_a:
-            sender_company = st.text_input("Your company name", value="Greif", key="neg_sender_company")
+            sender_company = st.text_input("Your company name", value="Your company name", key="neg_sender_company")
         with col_b:
             sender_name = st.text_input("Your name", value="Your Name", key="neg_sender_name")
         with col_c:
