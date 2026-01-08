@@ -1043,11 +1043,8 @@ with tab_results:
             linehaul_savings = float(out.loc[neg_mask, "delta_linehaul"].sum(skipna=True))
             fuel_savings = float(out.loc[neg_mask, "delta_fuel"].sum(skipna=True))
 
-            st.markdown(
-                f"- **Scenario 1 – Linehaul only:** ${linehaul_savings:,.2f}\n"
-                f"- **Scenario 2 – Linehaul + fuel:** ${overall_total:,.2f} "
-                f"(includes ${fuel_savings:,.2f} fuel)"
-            )
+            st.write(f"• Scenario 1 – Linehaul only: ${linehaul_savings:,.2f}")
+            st.write(f"• Scenario 2 – Linehaul + fuel: ${overall_total:,.2f} (includes ${fuel_savings:,.2f} fuel)")
 
             st.dataframe(summary_df, use_container_width=True)
 
